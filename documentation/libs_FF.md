@@ -93,7 +93,7 @@ Insère un `tr` avant le noeud `next`. Si spécifié, la classe du `tr` est `cla
 Retroune ce `tr`.
 * **appendTd(tr[Node]) > [Node]**  
 Ajoute un `td` à la fin de `tr`.
-Retroune ce `tr`.
+Retroune ce `td`.
 * **insertTd(next[Node]) > [Node]**  
 Insère un `td` avant le noeud `next`.
 Retroune ce `td`.
@@ -105,7 +105,7 @@ Retroune ce `td`.
 Insère un `td` contenant l'élément `el` avant le noeud `next`.
 Retroune ce `td`.
 * **appendText(paren[Node], text[String], bold[Boolean])**  
-Ajoute à la fin de `paren` le texte `text` à la fin de `paren`.
+Ajoute le texte `text` à la fin de `paren`.
 Si `bold` est évalué à `true`, alors le texte est en gras.
 * **insertText(next[Node], text[String], bold[Boolean])**  
 Insère le texte `text` avant le noeud `next`.
@@ -156,26 +156,28 @@ Retroune ce bouton.
 Ajout à la fin de `paren` un bouton de classe `mh_form_submit` (standard MH)
 et de valeur `value`.
 La fonction `onClick` est requise et ajoutée comme listener onclick.
-Retourne ce bouton.
+ Retourne ce bouton.
 * **createImage(url[String], title[String]) > [Node]**  
 Crée une une `img` avec les attributs spécifiés.
 * **createAltImage(url[String], alt[String], title[String]) > [Node]**  
 Crée une une `img` avec les attributs spécifiés.
 * **createImageSpan(url[String], alt[String], title[String], text[String], bold[Boolean]) > [Node]**  
-Crée un `span` ayant pour titre `title` et contenant :  
- * une `img` avec les attributs `url` et `alt` spécifiés,  
- * le texte `text`, en gras si `blod` est évalué à `true`.  
-Retourne ce `span`.
+ Crée un `span` ayant pour titre `title` et contenant :  
+ * une `img` avec les attributs `url` et `alt` spécifiés,
+ * le texte `text`, en gras si `blod` est évalué à `true`.
+ 
+ Retourne ce `span`.
 * **createCase(titre[String], table[Node], width[Number/String]) > [Node]**  
-Fonction servant à créer les lignes des tableaux de CdM.
-Ajoute à la fin de `table` un `tr` contenant :  
+ Fonction servant à créer les lignes des tableaux de CdM.
+ Ajoute à la fin de `table` un `tr` contenant :  
  * un premier `td` de classe `mh_tdtitre` et de largeur `width` (120 si non spécifiée),
-contenant le titre `titre`,  
- * un second `td` de classe `mh_tdpage`.  
-Retourne ce second `td`.
+contenant le titre `titre`,
+ * un second `td` de classe `mh_tdpage`.
+ 
+ Retourne ce second `td`.
 * **getMyID(e[Node]) > [Number]**  ___WARNING: sera retiré de MZ___  
 Retourne la position de l'élément `e` parmi les fils de son père.  
-I.e. `e==e.parentNode.childNodes[getMyID(e)]`.
+I.e. `e==e.parentNode.childNodes[getMyID(e)]`.  
 N'est actuellement utilisé que pour la fonction `insertAfter`... et ne lui est pas indispensable.
 * **insertAfter(elt[Node], newElt[Node])**  
 Insère l'élément `newElt` après le noeud `elt`.
@@ -183,7 +185,7 @@ Insère l'élément `newElt` après le noeud `elt`.
 
 ## Fonctions: Mise en forme du texte
 * **aff(nb[Number]) > [String]**  
-Retourne le nombre `nb` sous forme de chaîne avec affichage forcé du signe.
+Retourne le nombre `nb` sous forme de chaîne avec affichage forcé du signe.  
 E.g. `aff(5)=='+5'`.
 * **getNumber(str[String]) > [Number]**  
 Retourne le premier nombre rencontré dans la chaîne `str`.
@@ -204,7 +206,7 @@ cette fontion convertit le `texte` fournit en HTML _à partir_ du bbcode.
 
 ## Fonctions: Gestion / Transformation des Dates
 * **addZero(i[Number]) > [String]**  
-Bourrage à 2 caractères d'un chiffre.
+Bourrage à 2 caractères d'un chiffre.  
 E.g. `addZero(9)=='09'`.
 * **DateToString(date[Date]) > [String]**  
 Convertit la date `date` en chaîne de caractères au format `JJ/MM/AAAA hh:mm:ss`.
