@@ -771,23 +771,27 @@ function addInfoMM(node,mob,niv,qualite,effetQ) {
 	}
 	
 function addInfoEM(node,mob,compo,qualite,localisation) {
-	if(!tabEM[mob]) return;
+	if(!tabEM[mob]) { return; }
 	var title = 'Composant variable', texte = 'Variable';
 	var bold = false;
 	if(tabEM[mob].length>1) {
 		var pc = 5*(numQualite[qualite]-tabEM[mob][2]);
-		if(tabEM[mob][0].indexOf(compo)==-1) pc -= 20;
-		if(localisation.indexOf(tabEM[mob][3])==-1) pc -= 5;
-		if(pc<-20) return;
-		if(pc>=0) bold = true;
+		// Si compo inexact
+		if(tabEM[mob][0].indexOf(compo)==-1) { pc -= 20; }
+		// Si localisation inexacte
+		if(localisation.indexOf(tabEM[mob][3])==-1) { pc -= 5; }
+		// Pas d'affichage si malus de 25+%
+		if(pc<-20) { return; }
+		// Si bonus EM, afficher en gras
+		if(pc>=0) { bold = true; }
 		texte = aff(pc)+'%';
 		title = texte+" pour l'écriture de "+tabEM[mob][1];
-		}
+	}
 	var urlImg = 'http://mountyzilla.tilk.info/scripts_0.9/images/'
 		+'Competences/ecritureMagique.png';
 	var span = createImageSpan(urlImg,'EM:',title,' ['+texte+']',bold);
 	node.appendChild(span);
-	}
+}
 
 function insererInfosEM(tbody) {
 	// lancé par equip, equipgowap
