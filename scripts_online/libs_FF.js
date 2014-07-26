@@ -114,14 +114,16 @@ function insertTr(next,clas) {
 	return tr;
 	}
 
-function appendTd(tr) {
+function appendTd(tr,clas) {
 	var td = document.createElement('td');
-	if(tr) tr.appendChild(td);
+	if(tr) { tr.appendChild(td); }
+	if(clas) { td.className = clas; }
 	return td;	
 	}
 
-function insertTd(next) {
+function insertTd(next,clas) {
 	var td = document.createElement('td');
+	if(clas) { td.className = clas; }
 	insertBefore(next,td);
 	return td;
 	}
@@ -159,14 +161,14 @@ function insertText(next,text,bold) {
 		insertBefore(next,document.createTextNode(text));
 	}
 
-function appendTdText(tr,text,bold) {
-	var td = appendTd(tr);
+function appendTdText(tr,text,bold,clas) {
+	var td = appendTd(tr,clas);
 	appendText(td,text,bold);
 	return td;
 	}
 
-function insertTdText(next,text,bold) {
-	var td = insertTd(next);
+function insertTdText(next,text,bold,clas) {
+	var td = insertTd(next,clas);
 	appendText(td,text,bold);
 	return td;
 	}
@@ -1821,7 +1823,7 @@ function initTagPopup() {
 	if(tagPopup!=null) return;
 	tagPopup = document.createElement('div');
 	tagPopup.id = 'tagPopup';
-	tagPopup.classNAme = 'mh_textbox';
+	tagPopup.className = 'mh_textbox';
 	tagPopup.style =
 		'position:absolute;'
 		+'border:1px solid #000000;'
