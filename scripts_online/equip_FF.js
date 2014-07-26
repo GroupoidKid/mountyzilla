@@ -77,15 +77,15 @@ function traiteMinerai() {
 		else if(caracs.indexOf('Bonne')!=-1) { coef = 4; }
 		else if(caracs.indexOf('Exceptionnelle')!=-1) { coef = 5; }
 		if(nature.indexOf('Mithril')!=-1) {
-			coef = 0.2*coef;
+			coef = 2*coef;
 			str = ' | UM: ';
 		}
 		else {
-			coef = 0.75*coef+1.25;
-			if(nature.indexOf('Taill')!=-1) coef = 1.15*coef;
+			coef = 7.5*coef+12.5;
+			if(nature.indexOf('Taill')!=-1) { coef = 1.15*coef; }
 			str = ' | Carats: ';
 		}
-		var carats = Math.round(taille*coef);
+		var carats = Math.round(taille*coef)/10;
 		appendText(node.childNodes[9], str+carats );
 		if(!totaux[nature]) {
 			totaux[nature] = [taille,carats];
