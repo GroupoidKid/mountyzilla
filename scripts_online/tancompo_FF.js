@@ -1,52 +1,56 @@
-/*********************************************************************************
-*    This file is part of Mountyzilla.                                           *
-*                                                                                *
-*    Mountyzilla is free software; you can redistribute it and/or modify         *
-*    it under the terms of the GNU General Public License as published by        *
-*    the Free Software Foundation; either version 2 of the License, or           *
-*    (at your option) any later version.                                         *
-*                                                                                *
-*    Mountyzilla is distributed in the hope that it will be useful,              *
-*    but WITHOUT ANY WARRANTY; without even the implied warranty of              *
-*    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the               *
-*    GNU General Public License for more details.                                *
-*                                                                                *
-*    You should have received a copy of the GNU General Public License           *
-*    along with Mountyzilla; if not, write to the Free Software                  *
-*    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA  *
-*********************************************************************************/
+/*******************************************************************************
+*  This file is part of Mountyzilla.                                           *
+*                                                                              *
+*  Mountyzilla is free software; you can redistribute it and/or modify         *
+*  it under the terms of the GNU General Public License as published by        *
+*  the Free Software Foundation; either version 2 of the License, or           *
+*  (at your option) any later version.                                         *
+*                                                                              *
+*  Mountyzilla is distributed in the hope that it will be useful,              *
+*  but WITHOUT ANY WARRANTY; without even the implied warranty of              *
+*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the               *
+*  GNU General Public License for more details.                                *
+*                                                                              *
+*  You should have received a copy of the GNU General Public License           *
+*  along with Mountyzilla; if not, write to the Free Software                  *
+*  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA  *
+*******************************************************************************/
 
 var popup;
 
 function initPopup() {
 	popup = document.createElement('div');
-	popup.setAttribute('id', 'popup');
-	popup.setAttribute('class', 'mh_textbox');
-	popup.setAttribute('style', 'position: absolute; border: 1px solid #000000; visibility: hidden;'
-						+ 'display: inline; z-index: 3; max-width: 400px;');
+	popup.id = 'popup';
+	popup.className = 'mh_textbox';
+	popup.style =
+		'position: absolute;'+
+		'border: 1px solid #000000;'+
+		'visibility: hidden;'+
+		'display: inline;'+
+		'z-index: 3;'+
+		'max-width: 400px;';
 	document.body.appendChild(popup);
 }
 
 function showPopup(evt) {
 	var texte = this.getAttribute("texteinfo");
 	popup.innerHTML = texte;
-	popup.style.left = evt.pageX + 15 + 'px';
-	popup.style.top = evt.pageY + 'px';
-	popup.style.visibility = "visible";
+	popup.style.left = (evt.pageX+15)+'px';
+	popup.style.top = evt.pageY+'px';
+	popup.style.visibility = 'visible';
 }
 
 function hidePopup() {
-	popup.style.visibility = "hidden";
+	popup.style.visibility = 'hidden';
 }
 
-function createPopupImage(url, text)
-{
+function createPopupImage(url, text) {
 	var img = document.createElement('img');
-	img.setAttribute('src',url);
-	img.setAttribute('align','ABSMIDDLE');
-	img.setAttribute("texteinfo",text);
-	img.addEventListener("mouseover", showPopup,true);
-	img.addEventListener("mouseout", hidePopup,true);
+	img.src = url;
+	img.align = 'absmiddle'; // DEBUG: OBSOLETE
+	img.texteinfo = text;
+	img.onmouseover = showPopup;
+	img.onmouseout = hidePopup;
 	return img;
 }
 
@@ -61,42 +65,109 @@ function formateTexte(texte)
 	return texte;
 }
 
-function arrondi(x) {
-	return Math.ceil(x-0.5); // arrondi à l'entier le plus proche, valeurs inf
-	}
-
 function traiteMinerai() {
-	if (currentURL.indexOf("as_type=Divers")==-1) return;
+	//if(window.location.href.indexOf('as_type=Divers')==-1) { return; }
 	try {
-	var node = document.evaluate("//form/table/tbody[@class='tablesorter-no-sort'"
-								+" and contains(./tr/th/text(),'Minerai')]",
-								document, null, 9, null).singleNodeValue;
-	node = node.nextSibling.nextSibling;
+		var mainTab = document.getElementById('stock');
+		var titreMinerai = document.evaluate(
+			"./tbody[@class='tablesorter-no-sort'"+
+			" and contains(./tr/th/text(),'Minerai')]",
+			mainTab, null, 9, null).singleNodeValue;
+		var bodyMinerai = titreMinerai.nextSibling.nextSibling;
 	}
-	catch(e) {return;}
-	
-	var trlist = document.evaluate('./tr', node, null, 7, null);
-	for (var i=0 ; i<trlist.snapshotLength ; i++) {
-		var node = trlist.snapshotItem(i);
-		var nature = node.childNodes[5].textContent;
-		var caracs = node.childNodes[7].textContent;
-		var taille = caracs.match(/\d+/);
+	catch(e) {
+		console.warn('Aucun minerai trouvé.');
+		return;
+	}
+	/* Calcul des carats par gemme (+totaux) */
+	var trList = document.evaluate('./tr', bodyMinerai, null, 7, null);
+	var totaux = {};
+	var str;
+	for(var i=0 ; i<trList.snapshotLength ; i++) {
+		var tr = trList.snapshotItem(i);
+		var nature = trim(tr.childNodes[5].textContent);
+		var caracs = tr.childNodes[7].textContent;
+		var taille = Number(caracs.match(/\d+/));
 		var coef = 1;
-		if (caracs.indexOf('Moyen')!=-1) coef = 2;
-		else if (caracs.indexOf('Normale')!=-1) coef = 3;
-		else if (caracs.indexOf('Bonne')!=-1) coef = 4;
-		else if (caracs.indexOf('Exceptionnelle')!=-1) coef = 5;
-		if (nature.indexOf('Mithril')!=-1) {
-			coef = 0.2*coef;
-			appendText(node.childNodes[7], ' | UM: '+arrondi(taille*coef) );
-			}
+		if (caracs.indexOf('Moyen')!=-1) { coef = 2; }
+		else if (caracs.indexOf('Normale')!=-1) { coef = 3; }
+		else if (caracs.indexOf('Bonne')!=-1) { coef = 4; }
+		else if (caracs.indexOf('Exceptionnelle')!=-1) { coef = 5; }
+		if(nature.indexOf('Mithril')!=-1) {
+			coef = 2*coef;
+			str = ' | UM: ';
+		}
 		else {
-			coef = 0.75*coef+1.25;
-			if (nature.indexOf('Taill')!=-1) coef = 1.15*coef;
-			appendText(node.childNodes[7], ' | Carats: '+arrondi(taille*coef) );
-			}
+			coef = 7.5*coef+12.5;
+			if(nature.indexOf('Taill')!=-1) { coef = 1.15*coef; }
+			str = ' | Carats: ';
+		}
+		var carats = Math.round(taille*coef)/10;
+		appendText(tr.childNodes[7],str+carats);
+		if(!totaux[nature]) {
+			totaux[nature] = [taille,carats];
+		}
+		else {
+			totaux[nature][0] += taille;
+			totaux[nature][1] += carats;
 		}
 	}
+	/* Affichage des totaux */
+	var mainTd = appendTd(appendTr(titreMinerai),'mh_tdtitre');
+	mainTd.colSpan = 10;
+	str ='';
+	var table = document.createElement('table');
+	table.id = 'mineraux';
+	var tbody = document.createElement('tbody');
+	table.appendChild(tbody);
+	var css = document.createElement('style');
+	css.type = 'text/css';
+	appendText(css,
+		'table#mineraux { border-collapse: collapse; text-align: center; }\n'+
+		'table#mineraux td { padding: 1px 5px; }'
+	);
+	document.head.appendChild(css);
+	/*table.style.borderCollapse = 'collapse';
+	table.style.textAlign = 'center';*/
+	var trNom = appendTr(tbody),
+		trU = appendTr(tbody),
+		trT = appendTr(tbody),
+		trC = appendTr(tbody);
+	appendTdText(trNom,'TOTAUX',true);
+	appendTdText(trU,'Unités:',true);
+	appendTdText(trT,'dont Taillées:',true);
+	appendTdText(trC,'Carats:',true);
+	var mineraux = {
+		'Cristal de Sâl': ' Taillé',
+		'Flaaschy': ' Taillée',
+		'Kibrille': ' Taillé',
+		'Obsidienne': ' Taillée',
+		'Pierre de Sang': ' Taillée',
+		'Woeepaah': ' Taillé'
+	};
+	for(var type in mineraux) {
+		var UB = totaux[type] ? totaux[type][0] : 0;
+		var UT = totaux[type+mineraux[type]] ? totaux[type+mineraux[type]][0] : 0;
+		var Car = (totaux[type] ? totaux[type][1] : 0)+
+			(totaux[type+mineraux[type]] ? totaux[type+mineraux[type]][1] : 0);
+		if(UB || UT) {
+			appendTdText(trNom,type,true);
+			appendTdText(trU, Math.round(10*UB+10*UT)/10 ,false,'mh_tdpage');
+			appendTdText(trT, Math.round(10*UT)/10 ,false,'mh_tdpage');
+			appendTdText(trC, Math.round(10*Car)/10 ,false,'mh_tdpage');
+		}
+	}
+	if(totaux['Mithril']) {
+		appendTdText(trNom,'Mithril',true);
+		appendTdText(trU,totaux['Mithril'][0],false,'mh_tdpage');
+		var td = appendTdText(trT,
+			Math.round(10*totaux['Mithril'][1])/10+' UM',
+			false,'mh_tdpage'
+		);
+		td.rowSpan = 2
+	}
+	mainTd.appendChild(table);
+}
 
 function treateComposants() {
 	if (currentURL.indexOf("as_type=Compo")==-1) return;
