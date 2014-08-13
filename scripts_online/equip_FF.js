@@ -32,7 +32,7 @@ function traiteChampis() {
 		var trList = document.evaluate('./td/table/tbody/tr', tr, null, 7, null);
 	}
 	catch(e){ return; }
-	if(trList.length<=0) { return; }
+	if(trList.length<=0) { return; }
 	for(var i=0 ; i<trList.snapshotLength ; i++) {
 		var node = trList.snapshotItem(i).childNodes[7];
 		var str = node.textContent.trim();
@@ -72,10 +72,10 @@ function traiteMinerai() {
 			caracs = node.childNodes[9].textContent;
 		var taille = Number(caracs.match(/\d+/));
 		var coef = 1;
-		if(caracs.indexOf('Moyen')!=-1) { coef = 2; }
-		else if(caracs.indexOf('Normale')!=-1) { coef = 3; }
-		else if(caracs.indexOf('Bonne')!=-1) { coef = 4; }
-		else if(caracs.indexOf('Exceptionnelle')!=-1) { coef = 5; }
+		if(caracs.indexOf('Moyen')!=-1) { coef = 2; }
+		else if(caracs.indexOf('Normale')!=-1) { coef = 3; }
+		else if(caracs.indexOf('Bonne')!=-1) { coef = 4; }
+		else if(caracs.indexOf('Exceptionnelle')!=-1) { coef = 5; }
 		if(nature.indexOf('Mithril')!=-1) {
 			coef = 2*coef;
 			str = ' | UM: ';

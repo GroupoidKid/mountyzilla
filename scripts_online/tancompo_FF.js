@@ -66,7 +66,7 @@ function formateTexte(texte)
 }
 
 function traiteMinerai() {
-	//if(window.location.href.indexOf('as_type=Divers')==-1) { return; }
+	//if(window.location.href.indexOf('as_type=Divers')==-1) { return; }
 	try {
 		var mainTab = document.getElementById('stock');
 		var titreMinerai = document.evaluate(
@@ -90,9 +90,9 @@ function traiteMinerai() {
 		var taille = Number(caracs.match(/\d+/));
 		var coef = 1;
 		if (caracs.indexOf('Moyen')!=-1) { coef = 2; }
-		else if (caracs.indexOf('Normale')!=-1) { coef = 3; }
-		else if (caracs.indexOf('Bonne')!=-1) { coef = 4; }
-		else if (caracs.indexOf('Exceptionnelle')!=-1) { coef = 5; }
+		else if (caracs.indexOf('Normale')!=-1) { coef = 3; }
+		else if (caracs.indexOf('Bonne')!=-1) { coef = 4; }
+		else if (caracs.indexOf('Exceptionnelle')!=-1) { coef = 5; }
 		if(nature.indexOf('Mithril')!=-1) {
 			coef = 2*coef;
 			str = ' | UM: ';

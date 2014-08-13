@@ -775,7 +775,7 @@ function addInfoMM(node,mob,niv,qualite,effetQ) {
 	}
 	
 function addInfoEM(node,mob,compo,qualite,localisation) {
-	if(!tabEM[mob]) { return; }
+	if(!tabEM[mob]) { return; }
 	var title = 'Composant variable', texte = 'Variable';
 	var bold = false;
 	if(tabEM[mob].length>1) {
@@ -1820,7 +1820,7 @@ var infoTagTrolls = [], infoTagGuildes = [];
 
 /* [functions] Gestion des popups de tag */
 function initTagPopup() {
-	if(tagPopup!=null) return;
+	if(tagPopup!=null) { return; }
 	tagPopup = document.createElement('div');
 	tagPopup.id = 'tagPopup';
 	tagPopup.className = 'mh_textbox';
