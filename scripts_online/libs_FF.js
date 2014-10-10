@@ -1447,26 +1447,42 @@ function cnp(n,k)
 	return result;
 }
 
-// by Dab, à comparer
-function binom(n,p) {
-	if(p<0 || p>n) return 0;
-	
-	if(c[n])
-		if(c[n][p]) return c[n][p];
-	else {
-		c[n]=[1];
-		c[n][n]=1;
-		if(p==0 || p==n) return 1;
-		}
-	
-	if(2*p>n)
-		c[n][p]=binom(n,n-p);
-	else
-		c[n][p]=binom(n-1,p-1)+binom(n-1,p); // k(k-1)/2 additions
-	
-	return c[n][p];
-	}
+// Méthode benchmark-optimale pour Calcul d'un binomial aléatoire
+// !!! WARNING Ce n'est pas ce qu'on veut en multinomial !!!
+var cbin = {};
 
+function combin(n,k) {
+	if(k<0 || k>n) { return 0; }
+	if(n==0 || n==1) { return 1; }
+	if(cbin[n]!=null && cbin[n][k]!=null) {
+		return cbin[n][k];
+	}
+	if(cbin[n]==null) {
+		cbin[n]={
+			0:1,
+			1:n,
+			n:1
+		};
+		switch(k) {
+			case 0:
+			case n:
+				return 1;
+			case 1:
+				return n;
+		}
+	}
+	
+	if(2*k>n) {
+		cbin[n][k]=combin(n,n-k);
+	}
+	else {
+		cbin[n][k]=combin(n,k-1)*(n-k)/k;
+	}
+	
+	return cbin[n][k];
+}
+
+// Sorte de loi multinomiale chelou
 var coeff = new Array();
 
 function coef(n,p)
@@ -1487,6 +1503,13 @@ function coef(n,p)
 	}
 	coeff[n][p] = x;
 	return x;
+}
+
+// Loi Multinomiale
+var coeffMultinom = {};
+
+function genereMultinomiale(f,n,k) {
+	
 }
 
 function chanceEsquiveParfaite(a,d,ba,bd)
