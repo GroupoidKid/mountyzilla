@@ -20,7 +20,7 @@
  * getLvl pour Explo, Rotobaffe et cie
  */
 
-var pageNivURL = 'http://mountypedia.free.fr/mz/niveau_monstre_combat.php';
+var pageNivURL = 'http://mountypedia.ratibus.net/mz/niveau_monstre_combat.php';
 //var idtURL = "http://mh.byethost5.com/idt_serveur.php";
 
 
@@ -231,7 +231,7 @@ function traiteRM() {
 		nomIdt = nomIdt.slice(0, nomIdt.indexOf("(") - 1);
 		nomIdt = nomIdt.replace(regExpBeginning, "").replace(regExpEnd, "");
 	}
-	MZ_xmlhttpRequest({
+	FF_XMLHttpRequest({
 		method: 'GET',
 		url: idtURL + "?item=" + escape(nomIdt) + "&descr=" + escape(caracIdt),
 		headers : {
