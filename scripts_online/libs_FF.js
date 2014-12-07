@@ -466,6 +466,13 @@ var numQualite = {
 	'Très Bonne':5
 	};
 
+var effetEMChampi = {
+	'Acide':'-20%',
+	'Salé':'-10%',
+	'Sucré':'-5%',
+	'Mielleux':'+0%'
+};
+
 var qualiteNum = [
 	'_dummy_',
 	'Très Mauvaise',
@@ -791,31 +798,64 @@ function addInfoEM(node,mob,compo,qualite,localisation) {
 		texte = aff(pc)+'%';
 		title = texte+" pour l'écriture de "+tabEM[mob][1];
 	}
-	var urlImg = 'http://mountyzilla.tilk.info/scripts_0.9/images/'
-		+'Competences/ecritureMagique.png';
+	var urlImg = 'http://mountyzilla.tilk.info/scripts_0.9/images/'+
+		'Competences/ecritureMagique.png';
 	var span = createImageSpan(urlImg,'EM:',title,' ['+texte+']',bold);
 	node.appendChild(span);
 }
 
-function insererInfosEM(tbody) {
+function insererInfosEM(tbody,cellNum) {
 	// lancé par equip, equipgowap
-	var trCompos = document.evaluate(
-		"./tr[not(starts-with(td[2]/img/@alt,'Pas'))]",
-		tbody,null,7,null);
-	var strCompos = '';
+	try {
+		var trCompos = document.evaluate(
+			"./tr[not(starts-with(td[2]/img/@alt,'Pas'))]",
+			tbody, null, 7, null
+		);
+	} catch(e) {
+		console.error('[MZ libs] Erreur insererInfosEM\n'+e);
+		return;
+	}
+	if(!cellNum) { cellNum=2; }
 	for(var i=0 ; i<trCompos.snapshotLength ; i++) {
-		var node = trCompos.snapshotItem(i).childNodes[7];
+		var node = trCompos.snapshotItem(i).cells[cellNum];
 		var str = node.firstChild.textContent;
 		var compo = trim(str.slice(0,str.indexOf(" d'un")));
 		var mob = trim(str.slice(str.indexOf("d'un")+5));
 		// Si non-EM on stoppe le traitement
 		if(!tabEM[mob]) continue;
-		str = trCompos.snapshotItem(i).childNodes[9].textContent;
+		str = trCompos.snapshotItem(i).cells[cellNum+1].textContent;
 		var qualite = trim(str.slice(str.indexOf('Qualit')+9));
 		var localisation = trim(str.slice(0,str.indexOf(' |')));
 		addInfoEM(node,mob,compo,qualite,localisation);
 		}
 	}
+
+function addInfoChampiEM(node,type,qualite) {
+	var urlImg = 'http://mountyzilla.tilk.info/scripts_0.9/images/'+
+		'Competences/ecritureMagique.png';
+	var titre = 'Mundidey '+mundiChampi[type];
+	var effet = effetEMChampi[qualite];
+	var bold = (qualite==='Mielleux');
+	var span = createImageSpan(urlImg,' EM:',titre,' ['+effet+']',bold);
+	node.appendChild(span);
+}
+
+function insererInfosChampisEM(tbody,cellNum) {
+	// lancé par equip, equipgowap
+	var trChampis = document.evaluate(
+		"./tr[not(starts-with(td[2]/img/@alt,'Pas'))]",
+		tbody, null, 7, null
+	);
+	if(!cellNum) { cellNum=2; }
+	for(var i=0 ; i<trChampis.snapshotLength ; i++) {
+		var node = trChampis.snapshotItem(i).cells[cellNum];
+		var nom = trim(node.textContent);
+		var type = nom.slice(0,nom.lastIndexOf(' '));
+		var qualite = nom.slice(nom.lastIndexOf(' ')+1);
+		if(!mundiChampi[type] || !effetEMChampi[qualite]) { continue; }
+		addInfoChampiEM(node,type,qualite);
+	}
+}
 
 function getQualite(qualite) {
 	var nb = numQualite[qualite];
@@ -2008,3 +2048,6 @@ function analyseTags(data) {
 if(!isPage("MH_Play/Play_vue.php") && !isPage("MH_Play/Play_menu.php"))
 	performTagComputation();
 
+if(isPage('MH_Play/Play_e_follo')) {
+	MZ_appendNewScript('http://mountyzilla.tilk.info/scripts_0.9/equipgowap_FF.js');
+}

@@ -27,34 +27,29 @@
  */
 
 function traiteChampis() {
-	try{
+	try {
 		var tr = document.getElementById('mh_objet_hidden_Champignon');
-		var trList = document.evaluate('./td/table/tbody/tr', tr, null, 7, null);
+		var tbody = document.evaluate(
+			"./td/table/tbody", tr, null, 9, null
+		).singleNodeValue;
+	} catch(e) {
+		console.warn('[MZ Equip traiteChampis] Erreur initialisation\n'+e);
+		return;
 	}
-	catch(e){ return; }
-	if(trList.length<=0) { return; }
-	for(var i=0 ; i<trList.snapshotLength ; i++) {
-		var node = trList.snapshotItem(i).childNodes[7];
-		var str = node.textContent.trim();
-		var type = str.slice(0,str.lastIndexOf(' '));
-		var mundi = mundiChampi[type];
-		if(!mundi) continue;
-		var urlImg = 'http://mountyzilla.tilk.info/scripts_0.9/images/'
-			+'Competences/ecritureMagique.png';
-		var img = createAltImage(urlImg,'EM','Mundidey '+mundi);
-		appendText(node,' ');
-		node.appendChild(img);
-	}
+	insererInfosChampisEM(tbody,3);
 }
 
 function traiteCompos() {
 	try {
 		var tr = document.getElementById('mh_objet_hidden_Composant');
-		var tbody = document.evaluate("./td/table/tbody",
-			tr, null, 9, null).singleNodeValue;
+		var tbody = document.evaluate(
+			"./td/table/tbody", tr, null, 9, null
+		).singleNodeValue;
+	} catch(e) {
+		console.warn('[MZ Equip traiteCompos] Erreur initialisation\n'+e);
+		return;
 	}
-	catch(e){ return; }
-	insererInfosEM(tbody);
+	insererInfosEM(tbody,3);
 }
 
 function traiteMinerai() {
