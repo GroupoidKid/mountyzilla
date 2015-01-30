@@ -842,14 +842,22 @@ function addInfoEM(node,mob,compo,qualite,localisation) {
 	var bold = false;
 	if(tabEM[mob].length>1) {
 		var pc = 5*(numQualite[qualite]-tabEM[mob][2]);
-		// Si compo inexact
-		if(tabEM[mob][0].indexOf(compo)==-1) { pc -= 20; }
-		// Si localisation inexacte
-		if(localisation.indexOf(tabEM[mob][3])==-1) { pc -= 5; }
-		// Pas d'affichage si malus de 25+%
-		if(pc<-20) { return; }
-		// Si bonus EM, afficher en gras
-		if(pc>=0) { bold = true; }
+		if(tabEM[mob][0].indexOf(compo)==-1) {
+			// Si compo inexact
+			pc -= 20;
+		}
+		if(localisation.indexOf(tabEM[mob][3])==-1) {
+			// Si localisation inexacte
+			pc -= 5;
+		}
+		if(pc<-20) {
+			// Pas d'affichage si malus de 25+%
+			return;
+		}
+		if(pc>=0) {
+			// Si bonus EM, afficher en gras
+			bold = true;
+		}
 		texte = aff(pc)+'%';
 		title = texte+" pour l'écriture de "+tabEM[mob][1];
 	}

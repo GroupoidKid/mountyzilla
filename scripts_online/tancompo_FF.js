@@ -33,7 +33,7 @@ function initPopup() {
 }
 
 function showPopup(evt) {
-	var texte = this.getAttribute("texteinfo");
+	var texte = this.texteinfo;
 	popup.innerHTML = texte;
 	popup.style.left = (evt.pageX+15)+'px';
 	popup.style.top = evt.pageY+'px';
@@ -54,15 +54,13 @@ function createPopupImage(url, text) {
 	return img;
 }
 
-function formateTexte(texte)
-{
-	texte = texte.replace(/\n/g,"<br/>");
-	texte = texte.replace(/^([^<]*) d'un/g,"<b>$1</b> d'un");
-	texte = texte.replace(/<br\/>([^<]*) d'un/g,"<br/><b>$1</b> d'un");
-	texte = texte.replace(/(d'une? )([^<]*) d'au/g,"$1<b>$2</b> d'au");
-	texte = texte.replace(/(Qualité )([^<]*) \[/g,"$1<b>$2</b> [");
-	texte = texte.replace(/\[([^<]*)\]/g,"[<b>$1</b>]");
-	return texte;
+function formateTexte(texte) {
+	return texte.replace(/\n/g,"<br/>").
+		replace(/^([^<]*) d'un/g,"<b>$1</b> d'un").
+		replace(/<br\/>([^<]*) d'un/g,"<br/><b>$1</b> d'un").
+		replace(/(d'une? )([^<]*) d'au/g,"$1<b>$2</b> d'au").
+		replace(/(Qualité )([^<]*) \[/g,"$1<b>$2</b> [").
+		replace(/\[([^<]*)\]/g,"[<b>$1</b>]");
 }
 
 function traiteMinerai() {
