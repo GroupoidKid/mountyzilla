@@ -362,10 +362,57 @@ function createImageSpan(url,alt,title,text,bold) {
 	img.src = url;
 	img.alt = alt;
 	img.align = 'absmiddle'; // WARNING - Obsolete in HTML5.0
+	appendText(span,' ');
 	span.appendChild(img);
 	appendText(span,text,bold);
 	return span;
 	}
+
+function creerTableauMH(obTableau,id) {
+// Crée un tableau d'id 'id' à partir d'un objet obTableau:
+// grandTitre | TitreItem1 | TitreItem2 | ...
+// Variable1  | valeur1,1  | valeur1,2  | ...
+//
+// Structure d'un obTableau:
+//{
+//	hasNoms: bool
+//	titres : [('grandTitre',) 'TitreItem1', 'TitreItem2', ... ]
+//	lignes : {
+//		{
+//			(nom: 'Variable1',)
+//			data: [valeur1,1 , valeur1,2 , ... ]
+//		}, ...
+//	}
+//}
+	var table = document.createElement('table');
+	table.id = id;
+	var tbody = document.createElement('tbody');
+	table.appendChild(tbody);
+	var css = document.createElement('style');
+	css.type = 'text/css';
+	appendText(css,
+		'table#'+id+' { border-collapse:collapse; text-align:center; }\n'+
+		'table#'+id+' td { padding: 1px 5px; }'
+	);
+	document.head.appendChild(css);
+	if(obTableau.titres) {
+		var tr = appendTr(tbody,'mh_tdtitre');
+		for(var titre in obTableau.titres) {
+			appendTdText(tr,titre,true);
+		}
+	}
+	for(var ligne in obTableau.lignes) {
+		var tr = appendTr(tbody,'mh_tdpage');
+		if(obTableau.hasNoms) {
+			var nom = ligne.nom ? ligne.nom : '';
+			appendTdText(nom,true,'mh_tdtitre');
+		}
+		for(var num in ligne.data) {
+			appendTdText(tr,titre);
+		}
+	}
+	return table;
+}
 
 function createCase(titre,table,width) {
 	if(!width) width=120;
@@ -514,31 +561,25 @@ function analysePXTroll(niv) {
 // Refonte totale du code de Zorya
 
 // Elements à implémenter en dur dans MZ2.0
+
+// Mélange Magique
 var numQualite = {
 	'Très Mauvaise':1,
 	'Mauvaise':2,
 	'Moyenne':3,
 	'Bonne':4,
 	'Très Bonne':5
-	};
-
-var effetEMChampi = {
-	'Acide':'-20%',
-	'Salé':'-10%',
-	'Sucré':'-5%',
-	'Mielleux':'+0%'
 };
 
-var qualiteNum = [
-	'_dummy_',
-	'Très Mauvaise',
-	'Mauvaise',
-	'Moyenne',
-	'Bonne',
-	'Très Bonne'
-	];
+var qualiteNum = {
+	1:'Très Mauvaise',
+	2:'Mauvaise',
+	3:'Moyenne',
+	4:'Bonne',
+	5:'Très Bonne'
+};
 
-var nival = {
+var niveauMob = {
 	'Abishaii Bleu':19,
 	'Abishaii Noir':10,
 	'Abishaii Rouge':23,
@@ -706,9 +747,10 @@ var nival = {
 	'Yeti':8,
 	'Yuan-ti':15,
 	'Zombie':2
-	}
+}
 
-var tabEM = {
+// Écriture Magique
+var EM_compos = {
 	//Monstre: [Compo exact, Sort, Position, Localisation]
 	// AA
 	'Basilisk':["Œil d'un ","Analyse Anatomique",3,"Tête"],
@@ -797,9 +839,16 @@ var tabEM = {
 	'Vouivre':["d'une"],
 	'Gnu':["d'un"],
 	'Scarabée':["d'un"]
-	};
+};
 
-var mundiChampi = {
+var EM_effetChampi = {
+	'Acide':'-20%',
+	'Salé':'-10%',
+	'Sucré':'-5%',
+	'Mielleux':'+0%'
+};
+
+var EM_mundiChampi = {
 	'Préscientus Reguis':'du Phoenix',
 	'Amanite Trolloïde':'de la Mouche',
 	'Girolle Sanglante':'du Dindon',
@@ -813,7 +862,7 @@ var mundiChampi = {
 	'Nez Noir':'de la Vouivre',
 	'Pleurote Pleureuse':'du Gnu',
 	'Phytomassus Xilénique':'du Scarabée'
-	};
+};
 
 function addInfoMM(node,mob,niv,qualite,effetQ) {
 	appendText(node,' ');
@@ -838,16 +887,16 @@ function addInfoMM(node,mob,niv,qualite,effetQ) {
 	}
 
 function addInfoEM(node,mob,compo,qualite,localisation) {
-	if(!tabEM[mob]) { return; }
+	if(!EM_compos[mob]) { return; }
 	var title = 'Composant variable', texte = 'Variable';
 	var bold = false;
-	if(tabEM[mob].length>1) {
-		var pc = 5*(numQualite[qualite]-tabEM[mob][2]);
-		if(tabEM[mob][0].indexOf(compo)==-1) {
+	if(EM_compos[mob].length>1) {
+		var pc = 5*(numQualite[qualite]-EM_compos[mob][2]);
+		if(EM_compos[mob][0].indexOf(compo)==-1) {
 			// Si compo inexact
 			pc -= 20;
 		}
-		if(localisation.indexOf(tabEM[mob][3])==-1) {
+		if(localisation.indexOf(EM_compos[mob][3])==-1) {
 			// Si localisation inexacte
 			pc -= 5;
 		}
@@ -860,7 +909,7 @@ function addInfoEM(node,mob,compo,qualite,localisation) {
 			bold = true;
 		}
 		texte = aff(pc)+'%';
-		title = texte+" pour l'écriture de "+tabEM[mob][1];
+		title = texte+" pour l'écriture de "+EM_compos[mob][1];
 	}
 	var urlImg = 'http://mountyzilla.tilk.info/scripts_0.9/images/'+
 		'Competences/ecritureMagique.png';
@@ -886,7 +935,7 @@ function insererInfosEM(tbody,cellNum) {
 		var compo = trim(str.slice(0,str.indexOf(" d'un")));
 		var mob = trim(str.slice(str.indexOf("d'un")+5));
 		// Si non-EM on stoppe le traitement
-		if(!tabEM[mob]) continue;
+		if(!EM_compos[mob]) continue;
 		str = trCompos.snapshotItem(i).cells[cellNum+1].textContent;
 		var qualite = trim(str.slice(str.indexOf('Qualit')+9));
 		var localisation = trim(str.slice(0,str.indexOf(' |')));
@@ -897,15 +946,15 @@ function insererInfosEM(tbody,cellNum) {
 function addInfoChampiEM(node,type,qualite) {
 	var urlImg = 'http://mountyzilla.tilk.info/scripts_0.9/images/'+
 		'Competences/ecritureMagique.png';
-	var titre = 'Mundidey '+mundiChampi[type];
-	var effet = effetEMChampi[qualite];
+	var titre = 'Mundidey '+EM_mundiChampi[type];
+	var effet = EM_effetChampi[qualite];
 	var bold = (qualite==='Mielleux');
-	var span = createImageSpan(urlImg,' EM:',titre,' ['+effet+']',bold);
+	var span = createImageSpan(urlImg,'EM:',titre,'['+effet+']',bold);
 	node.appendChild(span);
 }
 
 function insererInfosChampisEM(tbody,cellNum) {
-	// lancé par equip, equipgowap
+// lancé par equip, equipgowap
 	var trChampis = document.evaluate(
 		"./tr[not(starts-with(td[2]/img/@alt,'Pas'))]",
 		tbody, null, 7, null
@@ -916,7 +965,7 @@ function insererInfosChampisEM(tbody,cellNum) {
 		var nom = trim(node.textContent);
 		var type = nom.slice(0,nom.lastIndexOf(' '));
 		var qualite = nom.slice(nom.lastIndexOf(' ')+1);
-		if(!mundiChampi[type] || !effetEMChampi[qualite]) { continue; }
+		if(!EM_mundiChampi[type] || !EM_effetChampi[qualite]) { continue; }
 		addInfoChampiEM(node,type,qualite);
 	}
 }
@@ -929,29 +978,29 @@ function getQualite(qualite) {
 function getEM(nom) {
 	if(nom.indexOf('[')!=-1)
 		nom = trim(nom.substring(0,nom.indexOf('[')));
-	if(tabEM[nom]) return nom;
+	if(EM_compos[nom]) return nom;
 	return '';
 	}
 
 // DEBUG ex-fonction composantEM
 function compoMobEM(mob) {
-	if(!tabEM[mob]) return '';
-	if(tabEM[mob].length==1)
-		return 'Divers composants '+tabEM[mob][0]+' '+mob+' (Composant Variable)';
-	return tabEM[mob][0]+' '+mob+" (Qualité "+qualiteNum[tabEM[mob][2]]
-			+") pour l'écriture de "+tabEM[mob][1];
+	if(!EM_compos[mob]) return '';
+	if(EM_compos[mob].length==1)
+		return 'Divers composants '+EM_compos[mob][0]+' '+mob+' (Composant Variable)';
+	return EM_compos[mob][0]+' '+mob+" (Qualité "+qualiteNum[EM_compos[mob][2]]
+			+") pour l'écriture de "+EM_compos[mob][1];
 	}
 
 // DEBUG ex-fonction compoEM
 function titreCompoEM(mob,compo,localisation,qualite) {
-	if(!tabEM[mob]) return '';
-	if(tabEM[mob].length==1) return 'Composant variable';
+	if(!EM_compos[mob]) return '';
+	if(EM_compos[mob].length==1) return 'Composant variable';
 	
-	var pc = 5*(tabEM[mob][2]-numQualite[qualite]);
-	if(compo.indexOf(tabEM[mob][0])==-1) pc -= 20;
-	if(localisation.indexOf(tabEM[mob][3])==-1) pc -= 5;
+	var pc = 5*(EM_compos[mob][2]-numQualite[qualite]);
+	if(compo.indexOf(EM_compos[mob][0])==-1) pc -= 20;
+	if(localisation.indexOf(EM_compos[mob][3])==-1) pc -= 5;
 	
-	if(pc>=-20) return pc+"% pour l'écriture de "+tabEM[mob][2];
+	if(pc>=-20) return pc+"% pour l'écriture de "+EM_compos[mob][2];
 	return '';
 	}
 
