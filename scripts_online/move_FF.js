@@ -55,9 +55,9 @@ function isTrou(x,y,n) {
 		return n<0 && n>-60;
 	}
 	if(grosTrous[x+';'+y]
-		|| grosTrous[x-1+';'+y]
-		|| grosTrous[x+';'+y+1]
-		|| grosTrous[x-1+';'+y+1]) {
+		|| grosTrous[(x-1)+';'+y]
+		|| grosTrous[x+';'+(y+1)]
+		|| grosTrous[(x-1)+';'+(y+1)]) {
 		return n<0 && n>-70;
 	}
 	if(Math.sqrt(
@@ -67,6 +67,7 @@ function isTrou(x,y,n) {
 	}
 	return false;
 }
+
 
 /*-[functions]----------------- Gestion des DEs ------------------------------*/
 
@@ -123,11 +124,11 @@ function changeValidation() {
 function validateTPDestination() {
 	try {
 		var text = document.getElementsByTagName('B')[0];
-		var a = text.firstChild.nodeValue.split('|');
-		var pos_x = a[0].substring(4, a[0].length - 1) * 1;
-		var pos_y = a[1].substring(5, a[1].length - 1) * 1;
-		var pos_n = a[2].substring(5, a[2].length) * 1;
-
+		var a = text.firstChild.nodeValue.split(' | ');
+		var pos_x = Number(a[0].slice(4));
+		var pos_y = Number(a[1].slice(4));
+		var pos_n = Number(a[2].slice(4));
+		
 		var nbtrous = 0;
 		for(var signX=-1 ; signX<=1 ; signX+=2) {
 			for(var x=0 ; x<=2 ; x++) {
@@ -153,8 +154,7 @@ function validateTPDestination() {
 				+'% de risque de tomber dans un trou de météorite.\n'
 				+'Êtes-vous sûr de vouloir prendre ce portail ?'
 			);
-		}
-		else if(nbtrous>=72) {
+		} else if(nbtrous>=72) {
 			return window.confirm(
 				'La voix de  mini TilK (n°36216) tonne dans votre tête :\n'
 				+'Malheureux, vous avez '+Math.floor((100*nbtrous)/144)
@@ -163,9 +163,8 @@ function validateTPDestination() {
 			);
 		}
 		return true;
-	}
-	catch(e) {
-		window.alert(e)
+	} catch(e) {
+		window.console.log('[Erreur MZ] validateTPDestination:\n'+e);
 	}
 }
 
@@ -192,7 +191,6 @@ function changeButtonValidate() {
 
 if(isPage('MH_Play/Actions/Play_a_Move.php')) {
 	changeValidation();
-}
-else if(isPage('MH_Lieux/Lieu_Teleport.php')) {
+} else if(isPage('MH_Lieux/Lieu_Teleport.php')) {
 	changeButtonValidate();
 }
