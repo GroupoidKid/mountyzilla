@@ -1334,8 +1334,8 @@ function sortileges(sort,mainCall,pcA,pcD) {
 	var texte = '';
 	if (mainCall) {
         /* pourcentages Des bonus/malus du a PuM/PreM : Att et Deg*/
-		pcA = (atttourP+atttourM);
-		pcD = (degtourP+degtourM);
+		pcA = atttourM;
+		pcD = degtourM;
 	}
 	if (sort.indexOf('Analyse Anatomique') != -1) {
 		texte = 'Portée horizontale : <b>'
@@ -1480,7 +1480,7 @@ function sortileges(sort,mainCall,pcA,pcD) {
 			+' => <b>'+(Math.round(3.5*(vue+modD))+attbm)+'</b><br/>'
 			+'Dégâts : <b>'+Math.floor(vue/2)+'</b> D3 ';
 		if(pcD!=0) {
-			modD = parseInt(Math.floor(vue/2)+pcD);
+			modD = parseInt(Math.floor(vue/2)*pcD/100);
 			texte += '<i>'+aff(modD)+'D3</i> ';
 		}else
             modD = 0;
