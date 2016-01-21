@@ -21,35 +21,43 @@
  * prévoir fix ("delete infos")
  */
 
-/**
- * Variables Globales
- */
+/*--------------------------- Variables Globales -----------------------------*/
 
 // Infos remplies par des scripts extérieurs
-var cg = [], ct = []; // Couleur Guilde, Couleur Trõll (Diplo)
-
 var listeCDM = [], listeLevels = [];
 
-var listeTags = [], listeTagsInfos = [],
-	listeTagsGuilde = [], listeTagsInfosGuilde = [];
+// Position actuelle
+var currentPosition=[0,0,0];
+
+// Portées de la vue : [vueHpure, vueVpure, vueHlimitée, vueVlimitée]
+var porteeVue=[0,0,0,0];
 
 // Fenêtres déplaçables
 var winCurr = null;
 var offsetX, offsetY;
 document.onmousemove = drag;
 
-// Infos trolls
+// Diplomatie
+var Diplo = {
+	Guilde: {},
+	Troll: {},
+	Monstre: {}
+	// .mythiques: uniquement si option activée
+};
+var isDiploRaw = true; // = si la Diplo n'a pas encore été analysée
+
+// Infos tactiques
 var popup;
 
+// Gère l'affichage en cascade des popups de CdM
 var nbCDM = 0;
 
 var isCDMsRetrieved = false; // = si les CdM ont déjà été DL
-var isDiploComputed = false; // = si la Diplo a déjà été DL
 
 // Utilisé pour supprimer les monstres "engagés"
-var listeEngages = [];
+var listeEngages = {};
 var isEngagesComputed = false;
-var cursorOnLink = false;
+var cursorOnLink = false; // DEBUG: wtf ?
 
 var needComputeEnchantement = MZ_getValue(numTroll+'.enchantement.liste')
 	&& MZ_getValue(numTroll+'.enchantement.liste')!='';
@@ -58,8 +66,65 @@ var needComputeEnchantement = MZ_getValue(numTroll+'.enchantement.liste')
 var checkBoxGG, checkBoxCompos, checkBoxBidouilles, checkBoxIntangibles,
 	checkBoxDiplo, checkBoxTrou, checkBoxEM, checkBoxTresorsNonLibres,
 	checkBoxTactique, checkBoxLevels, checkBoxGowaps, checkBoxEngages,
-	checkBoxMythiques, comboBoxNiveauMin, comboBoxNiveauMax;
+	comboBoxNiveauMin, comboBoxNiveauMax;
 
+/* Acquisition & Stockage des données de DB */
+const typesAFetcher = {
+	'monstres':1,
+	'trolls':1,
+	'tresors':1,
+	'champignons':1,
+	'lieux':1
+}
+var tr_monstres = {}, tr_trolls = {}, tr_tresors = {},
+	tr_champignons = {}, tr_lieux = {};
+var nbMonstres = 0, nbTrolls = 0, nbTresors = 0,
+	nbChampignons = 0, nbLieux = 0;
+
+function fetchData(type) {
+	try {
+		var node = document.getElementById('mh_vue_hidden_'+type);
+		// this = MZ.global = sandBox de travail de MZ
+		// On définit donc des variables MZ-globales
+		this['tr_'+type] = node.getElementsByTagName('tr');
+		this['nb'+type[0].toUpperCase()+type.slice(1)] = this['tr_'+type].length-1;
+	} catch(e) {
+		window.console.warn('[MZ Vue] Erreur acquisition type '+type+'\n'+e);
+	}
+}
+
+for(var type in typesAFetcher) {
+	fetchData(type);
+}
+
+/*---------------------------------- DEBUG -----------------------------------*/
+var mainTabs = document.getElementsByClassName('mh_tdborder');
+var x_monstres = tr_monstres;
+var x_trolls = tr_trolls;
+var x_tresors = tr_tresors;
+var x_champis = tr_champignons;
+var x_lieux = tr_lieux;
+/*-------------------------------- FIN DEBUG ---------------------------------*/
+
+
+/*-[functions]-------------- Fonctions utilitaires ---------------------------*/
+
+function positionToString(arr) {
+	return arr.join(';');
+}
+
+function getPortee(param) {
+	return Math.ceil((Math.sqrt(19 + 8 * (param + 3)) - 7) / 2);
+}
+
+function savePosition() {
+	// Stocke la position (à jour) de la vue pour les autres scripts
+	// DEBUG: Lesquels et pourquoi?
+	var pos = getPosition();
+	MZ_setValue(numTroll+'.position.X',pos[0]);
+	MZ_setValue(numTroll+'.position.Y',pos[1]);
+	MZ_setValue(numTroll+'.position.N',pos[2]);
+}
 
 
 /*-[functions]--- Fonctions de récupération de données (DOM) -----------------*/
@@ -67,66 +132,19 @@ var checkBoxGG, checkBoxCompos, checkBoxBidouilles, checkBoxIntangibles,
  * les champs-titres (table>tbody>tr>td>table>tbody>tr>td>a)
  * sont identifiables via leur Name
  * les tables-listings sont identifiables via l'ID du tr conteneur
- * (mh_vue_hidden_XXX, XXX=trolls, champis, etc)
+ * (mh_vue_hidden_XXX, XXX=trolls, champignons, etc)
  */
-
-/* Acquisition & Stockage des données  */
-var node = document.getElementById('mh_vue_hidden_monstres');
-var tr_monstres = node.getElementsByTagName('tr');
-var nbMonstres = tr_monstres.length-1;
-node = document.getElementById('mh_vue_hidden_trolls');
-var tr_trolls = node.getElementsByTagName('tr');
-var nbTrolls = tr_trolls.length-1;
-node = document.getElementById('mh_vue_hidden_tresors');
-var tr_tresors = node.getElementsByTagName('tr');
-var nbTresors = tr_tresors.length-1;
-node = document.getElementById('mh_vue_hidden_champignons');
-var tr_champis = node.getElementsByTagName('tr');
-var nbChampis = tr_champis.length-1;
-node = document.getElementById('mh_vue_hidden_lieux');
-var tr_lieux = node.getElementsByTagName('tr');
-var nbLieux = tr_lieux.length-1;
-/*---------------------------------- DEBUG -----------------------------------*/
-var mainTabs = document.getElementsByClassName('mh_tdborder');
-var x_monstres = tr_monstres;
-var x_trolls = tr_trolls;
-var x_tresors = tr_tresors;
-var x_champis = tr_champis;
-var x_lieux = tr_lieux;
-/*-------------------------------- FIN DEBUG ---------------------------------*/
-
-function getPositionStr(pos) {
-	// À renommer. Grave.
-	return pos[0]+';'+pos[1]+';'+pos[2];
-}
 
 /* [functions] Récup données Utilisateur */
 function getPosition() {
-	// DEBUG : et pourquoi c'est pas juste stocké en var globale... ?
-	var pos = document.evaluate("//li/b/text()[contains(.,'X = ')]",
-				document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.nodeValue;
-	var posx = pos.substring(pos.indexOf('=') + 2, pos.indexOf(','));
-	pos = pos.substr(pos.indexOf(',') + 1);
-	return new Array(posx, pos.substring(pos.indexOf('=') + 2, pos.indexOf(',')), pos.substr(pos.lastIndexOf('=') + 2));
+	// Pour rétrocompatibilité
+	return currentPosition;
 }
 
 function getPorteVue() {
-	// Retourne [vueHpure, vueVpure, vueHlimitée, vueVlimitée]
-	// DEBUG : et pourquoi c'est pas juste stocké en var globale... ?
-	var array = [];
-	var infoTab = document.getElementById('infoTab');
-	var nodes = document.evaluate(
-		".//li/b/text()[contains(.,'horizontalement') "
-		+"or contains(.,'verticalement')]",
-		infoTab, null, 7, null);
-	if(nodes.snapshotLength!=4) {
-		return null;
-		}
-	for(var i=0 ; i<4 ; i++) {
-		array.push(parseInt(nodes.snapshotItem(i).nodeValue));
-		}
-	return array;
-	}
+	// Pour rétrocompatibilité
+	return porteeVue;
+}
 
 function getVue() {
 	// Retourne [vueHpure, vueVpure]
@@ -136,68 +154,76 @@ function getVue() {
 
 /* [functions] Récup données monstres */
 function getMonstreDistance(i) {
-	return tr_monstres[i].firstChild.firstChild.nodeValue;
-	}
+	return parseInt(tr_monstres[i].cells[0].textContent);
+}
 
 function getMonstreID(i) {
-	return tr_monstres[i].childNodes[1].firstChild.nodeValue;
-	}
+	return tr_monstres[i].cells[2].firstChild.nodeValue;
+}
 
 function getMonstreIDByTR(tr) {
-	return tr.childNodes[1].firstChild.nodeValue;
-	}
+	return tr.cells[2].firstChild.nodeValue;
+}
 
 function getMonstreLevelNode(i) {
-	return tr_monstres[i].childNodes[2];
-	}
+	return tr_monstres[i].cells[3];
+}
 
 function getMonstreLevel(i) {
 	if(!isCDMsRetrieved) return -1;
 	var donneesMonstre = listeCDM[getMonstreID(i)];
 	return donneesMonstre ? parseInt(donneesMonstre[0]) : -1;
-	}
+}
 
-function getMonstreTdNom(i) {
+function getMonstreNomNode(i) {
 	try {
-		return tr_monstres[i].childNodes[checkBoxLevels.checked ? 2 : 3];
-		}
-	catch(e) {
-		window.alert('[getMonstreTdNom] Impossible de trouver le monstre '+i);
-		}
+		var td = document.evaluate(
+			"./td/a[starts-with(@href, 'javascript:EMV')]/..",
+			tr_monstres[i], null, 9, null
+		).singleNodeValue;
+		return td;
+	} catch(e) {
+		avertissement('[getMonstreNomNode] Impossible de trouver le monstre '+i);
+		window.console.error(e);
 	}
+}
 
 function getMonstreNom(i) {
-	try {
-		return tr_monstres[i].childNodes[checkBoxLevels.checked ? 2 : 3]
-			.firstChild.firstChild.nodeValue;
-		}
-	catch(e) {
-		window.alert('[getMonstreNom] Impossible de trouver le monstre '+i);
-		}
-	}
+	return getMonstreNomByTR(tr_monstres[i]);
+}
 
 function getMonstreNomByTR(tr) {
-	return tr.childNodes[checkBoxLevels.checked ? 2 : 3]
-		.firstChild.firstChild.nodeValue;
+	try {
+		var nom = document.evaluate(
+			"./td/a[starts-with(@href, 'javascript:EMV')]/text()",
+			tr, null, 2, null
+		).stringValue;
+		return nom;
+	} catch(e) {
+		avertissement('[getMonstreNom] Impossible de trouver le monstre '+i);
+		window.console.error(e);
 	}
+}
 
 function getMonstrePosition(i) {
 	var tds = tr_monstres[i].childNodes;
-	var c = checkBoxLevels.checked ? 0 : 1;
-	return [ tds[3+c].firstChild.nodeValue,
-			tds[4+c].firstChild.nodeValue,
-			tds[5+c].firstChild.nodeValue ];
-	}
+	var l = tds.length;
+	return [
+		parseInt(tds[l-3].textContent),
+		parseInt(tds[l-2].textContent),
+		parseInt(tds[l-1].textContent)
+	];
+}
 
 function appendMonstres(txt) {
 	for(var i=1; i<=nbMonstres ; i++)
-		txt += getMonstreID(i)+';'+getMonstreNom(i)+';'+getPositionStr(getMonstrePosition(i))+'\n';
+		txt += getMonstreID(i)+';'+getMonstreNom(i)+';'+positionToString(getMonstrePosition(i))+'\n';
 	return txt;
 }
 
 function getMonstres() {
 	var vue = getVue();
-	return appendMonstres(getPositionStr(getPosition()) + ";" + vue[0] + ";" + vue[1] + "\n");
+	return appendMonstres(positionToString(getPosition()) + ";" + vue[0] + ";" + vue[1] + "\n");
 }
 
 function bddMonstres(start,stop) {
@@ -206,90 +232,155 @@ function bddMonstres(start,stop) {
 	stop = Math.min(nbMonstres,stop);
 	var txt='';
 	for(var i=start ; i<=stop ; i++) {
-		txt += getMonstreID(i)+';'
-			+getMonstreNom(i)+' test MZ'+';' // DEBUG
-			//+getMonstreNom(i)
-			+getPositionStr(getMonstrePosition(i))+'\n';
+		txt += getMonstreID(i)+';'+
+			getMonstreNom(i)+';'+
+			positionToString(getMonstrePosition(i))+'\n';
 	}
-	return txt ? '#DEBUT MONSTRES\n'+txt+'#FIN MONSTRES' : '';
+	return txt ? '#DEBUT MONSTRES\n'+txt+'#FIN MONSTRES\n' : '';
 }
 
 /* [functions] Récup données Trolls */
 function getTrollDistance(i) {
-	return tr_trolls[i].firstChild.firstChild.nodeValue;
-	}
+	return parseInt(tr_trolls[i].cells[0].textContent);
+}
 
 function getTrollID(i) {
-	return tr_trolls[i].childNodes[1].firstChild.nodeValue;
-	}
+	return parseInt(tr_trolls[i].cells[2].textContent);
+}
 
 function getTrollNomNode(i) {
 	var isEnvoiOn =
-		document.getElementById('btn_envoi').parentNode.childNodes.length>1;
-	return tr_trolls[i].childNodes[ isEnvoiOn ? 3 : 2 ];
-	}
+		document.getElementById('btnEnvoi').parentNode.childNodes.length>1;
+	return tr_trolls[i].cells[ isEnvoiOn ? 4 : 3 ];
+}
+
+function getTrollNivNode(i) {
+	// Pas de test sur isEnvoiOn, n'est appelé qu'au pageload
+	return tr_trolls[i].cells[4];
+}
+
+function getTrollGuilde(i) {
+	return trim(tr_trolls[i].cells[6].textContent);
+}
 
 function getTrollGuildeID(i) {
-	if(tr_trolls[i].childNodes[5].firstChild.childNodes.length>0) {
-		var href = tr_trolls[i].childNodes[5].firstChild.getAttribute('href');
+	if(tr_trolls[i].childNodes[6].childNodes.length>0) {
+		var href = tr_trolls[i].childNodes[6].firstChild.getAttribute('href');
 		return href.substring(href.indexOf('(')+1,href.indexOf(','));
-		}
-	return -1;
 	}
+	return -1;
+}
 
 function getTrollPosition(i) {
 	var tds = tr_trolls[i].childNodes;
 	var l = tds.length;
 	return [
-		tds[l-3].firstChild.nodeValue,
-		tds[l-2].firstChild.nodeValue,
-		tds[l-1].firstChild.nodeValue ];
+		parseInt(tds[l-3].textContent),
+		parseInt(tds[l-2].textContent),
+		parseInt(tds[l-1].textContent)
+	];
+}
+
+function bddTrolls() {
+	var txt='#DEBUT TROLLS\n'+
+		numTroll+';'+positionToString(getPosition())+'\n';
+	for(var i=1 ; i<=nbTrolls ; i++) {
+		txt += getTrollID(i)+';'+
+			positionToString(getTrollPosition(i))+'\n';
 	}
+	return txt+'#FIN TROLLS';
+}
 
 /* [functions] Récup données Trésors */
 function getTresorDistance(i) {
-	return tr_tresors[i].firstChild.firstChild.nodeValue;
-	}
+	return tr_tresors[i].cells[0].firstChild.nodeValue;
+}
+
+function getTresorID(i) {
+	return trim(tr_tresors[i].cells[2].textContent);
+}
 
 function getTresorNom(i) {
-	var nom = tr_tresors[i].childNodes[2].firstChild.childNodes;
-	return (nom.length==1) ? nom[0].nodeValue : nom[1].firstChild.nodeValue;
-	}
+	// Utilisation de textContent pour régler le "bug de Pollux"
+	return trim(tr_tresors[i].cells[3].textContent);
+}
 
 function getTresorPosition(i) {
 	var tds = tr_tresors[i].childNodes;
+	var l = tds.length;
 	return [
-		tds[3].firstChild.nodeValue,
-		tds[4].firstChild.nodeValue,
-		tds[5].firstChild.nodeValue ];
-	}
+		parseInt(tds[l-3].textContent),
+		parseInt(tds[l-2].textContent),
+		parseInt(tds[l-1].textContent),
+	];
+}
 
-function bddTresors(start,stop) {
+function bddTresors(dmin,start,stop) {
+// On retire les trésors proches (dmin) pour Troogle à cause de leur description
+	if(!dmin) { var dmin = 0; }
 	if(!start) { var start = 1; }
 	if(!stop) { var stop = nbTresors; }
 	stop = Math.min(nbTresors,stop);
 	var txt='';
 	for(var i=start ; i<=stop ; i++) {
-		if(getTresorDistance(i)>=1) {
-			var tds = tr_tresors[i].childNodes;
-			txt += tds[1].firstChild.nodeValue+';'
-				+getTresorNom(i)+' test MZ'+';' // NE PAS remplacer par tds[2].machin
-				+tds[3].firstChild.nodeValue+';'
-				+tds[4].firstChild.nodeValue+';'
-				+tds[5].firstChild.nodeValue+'\n';
+		if(getTresorDistance(i)>=dmin) {
+			txt += getTresorID(i)+';'+
+				getTresorNom(i)+';'+
+				positionToString(getTresorPosition(i))+'\n';
 		}
 	}
-	return txt ? '#DEBUT TRESORS\n'+txt+'#FIN TRESORS' : '';
+	return txt ? '#DEBUT TRESORS\n'+txt+'#FIN TRESORS\n' : '';
+}
+
+/* [functions] Récup données Champignons */
+// DEBUG: Pas de colonne "Référence" sur serveur de test
+function getChampignonNom(i) {
+	return trim(tr_champignons[i].cells[2].textContent);
+}
+
+function getChampignonPosition(i) {
+	var tds = tr_champignons[i].childNodes;
+	var l = tds.length;
+	return [
+		parseInt(tds[l-3].textContent),
+		parseInt(tds[l-2].textContent),
+		parseInt(tds[l-1].textContent)
+	];
+}
+
+function bddChampignons() {
+	var txt='';
+	for(var i=1 ; i<=nbChampignons ; i++) {
+		txt += ';'+ // Les champis n'ont pas de Référence
+			getChampignonNom(i)+';'+
+			positionToString(getChampignonPosition(i))+'\n';
+	}
+	return txt ? '#DEBUT CHAMPIGNONS\n'+txt+'#FIN CHAMPIGNONS\n' : '';
 }
 
 /* [functions] Récup données Lieux */
 function getLieuDistance(i) {
-	return parseInt(tr_lieux[i].firstChild.firstChild.nodeValue);
-	}
+	return parseInt(tr_lieux[i].cells[0].textContent);
+}
 
-function getLieuNom(i) { /* DEBUG - en test */
-	return tr_lieux[i].childNodes[2].childNodes[1].textContent;
-	}
+function getLieuID(i) {
+	return parseInt(tr_lieux[i].cells[2].textContent);
+}
+
+function getLieuNom(i) {
+	// Conversion ASCII pour éviter les bugs des Vues externes
+	return trim(tr_lieux[i].cells[3].textContent);
+}
+
+function getLieuPosition(i) {
+	var tds = tr_lieux[i].childNodes;
+	var l = tds.length;
+	return [
+		parseInt(tds[l-3].textContent),
+		parseInt(tds[l-2].textContent),
+		parseInt(tds[l-1].textContent)
+	];
+}
 
 function appendLieux(txt) {
 	for(var i = 1; i < nbLieux+1; i++) {
@@ -302,7 +393,7 @@ function appendLieux(txt) {
 
 function getLieux() {
 	var vue = getVue();
-	return appendLieux(getPositionStr(getPosition()) + ";" + vue[0] + ";" + vue[1] + "\n");
+	return appendLieux(positionToString(getPosition()) + ";" + vue[0] + ";" + vue[1] + "\n");
 }
 
 function bddLieux(start,stop) {
@@ -311,14 +402,11 @@ function bddLieux(start,stop) {
 	stop = Math.min(nbLieux,stop);
 	var txt='';
 	for(var i=start ; i<=stop ; i++) {
-		var tds = tr_lieux[i].childNodes;
-		txt += tds[1].firstChild.nodeValue+';'
-			+getLieuNom(i)+' test MZ'+';' // NE PAS remplacer par tds[2].machin
-			+tds[3].firstChild.nodeValue+';'
-			+tds[4].firstChild.nodeValue+';'
-			+tds[5].firstChild.nodeValue+'\n';
+		txt += getLieuID(i)+';'+
+			epure(getLieuNom(i))+';'+
+			positionToString(getLieuPosition(i))+'\n';
 	}
-	return txt ? '#DEBUT LIEUX\n'+txt+'#FIN LIEUX' : '';
+	return txt ? '#DEBUT LIEUX\n'+txt+'#FIN LIEUX\n' : '';
 }
 
 
@@ -355,8 +443,8 @@ function synchroniseFiltres() {
 	var numBool = recallComboBox(comboBoxNiveauMin,'NIVEAUMINMONSTRE');
 	numBool = recallComboBox(comboBoxNiveauMax,'NIVEAUMAXMONSTRE') || numBool;
 	if(numBool) {
-		debutFiltrage('monstres');
-		}
+		debutFiltrage('Monstres');
+	}
 	recallCheckBox(checkBoxGowaps,'NOGOWAP');
 	recallCheckBox(checkBoxMythiques,'NOMYTH');
 	recallCheckBox(checkBoxEngages,'NOENGAGE');
@@ -365,13 +453,13 @@ function synchroniseFiltres() {
 	recallCheckBox(checkBoxGG,'NOGG');
 	recallCheckBox(checkBoxCompos,'NOCOMP');
 	recallCheckBox(checkBoxBidouilles,'NOBID');
-	recallCheckBox(checkBoxDiplo,'NODIPLO');
+	recallCheckBox(checkBoxDiplo,numTroll+'.diplo.off');
 	recallCheckBox(checkBoxTrou,'NOTROU');
 	recallCheckBox(checkBoxTresorsNonLibres,'NOTRESORSNONLIBRES');
 	recallCheckBox(checkBoxTactique,'NOTACTIQUE');
 	if(MZ_getValue('NOINFOEM')!='true')
 		recallCheckBox(checkBoxEM,'NOEM');
-	}
+}
 
 
 /*-[functions]-------- Initialisation: Ajout des Boutons ---------------------*/
@@ -384,7 +472,7 @@ var vue2Ddata = {
 		func: getVueScript,
 		extra_params: {
 			'mode': 'vue_SP_Vue2',
-			'screen_width': screen.width
+			'screen_width': window.screen.width
 		}
 	},
 	'Vue du CCM': {
@@ -392,7 +480,7 @@ var vue2Ddata = {
 		paramid: 'vue',
 		func: getVueScript,
 		extra_params: {
-			'id': numTroll+';'+getPositionStr(getPosition())
+			'id': numTroll+';'+positionToString(getPosition())
 		}
 	},
 	'Vue Gloumfs 2D': {
@@ -408,44 +496,37 @@ var vue2Ddata = {
 		extra_params: {}
 	},
 	'Grouky Vue!': {
-		url: 'http://ythogtha.org/MH/grouky.py/grouky',
+		url: 'http://mh.ythogtha.org/grouky.py/grouky',
 		paramid: 'vue',
 		func: getVueScript,
 		extra_params: {
 			'type_vue': 'V5b1'
 		}
 	},
-	'DEBUG': {
+	/*'DEBUG': {
 		url: 'http://weblocal/testeur.php',
 		paramid: 'vue',
 		func: getVueScript,
 		extra_params: {}
-	}
+	}*/
 };
 
 function getVueScript() {
-	try
-	{
-		txt = '#DEBUT TROLLS\n'+numTroll+';'+getPositionStr(getPosition())+'\n';
-		for(var i=1; i <=nbTrolls ; i++) {
-			txt += getTrollID(i)+';'+getPositionStr(getTrollPosition(i))+'\n';
-			}
-		txt = appendMonstres(txt+'#FIN TROLLS\n#DEBUT MONSTRES\n')+'#FIN MONSTRES\n#DEBUT TRESORS\n';
-		for(var i=1 ; i<=nbTresors ; i++) {
-			var tds = x_tresors[i].childNodes;
-			txt += tds[1].firstChild.nodeValue+';'+getTresorNom(i)+';'+tds[3].firstChild.nodeValue+';'
-				+tds[4].firstChild.nodeValue+';'+tds[5].firstChild.nodeValue+'\n';
-			}
-	    txt = appendLieux(txt+'#FIN TRESORS\n#DEBUT LIEUX\n')+'#FIN LIEUX\n#DEBUT CHAMPIGNONS\n';
-	    for(var i=1 ; i <=nbChampis ; i++) {
-			var tds = x_champis[i].childNodes;
-			txt += ';'+tds[1].firstChild.nodeValue+';'+tds[2].firstChild.nodeValue+';'
-				+tds[3].firstChild.nodeValue+';'+tds[4].firstChild.nodeValue+'\n';
-			}
-		return txt+'#FIN CHAMPIGNONS\n#DEBUT ORIGINE\n'+getVue()[0]+';'+getPositionStr(getPosition())+'\n#FIN ORIGINE\n';
+	try {
+		var txt = bddTrolls()+
+			bddMonstres()+
+			bddChampignons()+
+			bddTresors()+
+			bddLieux()+
+			'#DEBUT ORIGINE\n'+
+			getPorteVue()[2]+';'+positionToString(getPosition())+
+			'\n#FIN ORIGINE\n';
+		return txt;
+	} catch(e) {
+		avertissement("[getVueScript] Erreur d'export vers Vue externe");
+		window.console.error('[MZ getVueScript]\n',e)
 	}
-	catch(e) {window.alert(e)}
-	}
+}
 
 function refresh2DViewButton() {
 	// = EventListener menu+bouton vue 2D
@@ -469,14 +550,27 @@ function refresh2DViewButton() {
 }
 
 function set2DViewSystem() {
-	// = Initialiseur du système de vue 2D
+// Initialise le système de vue 2D
+	// Recherche du point d'insertion
+	try {
+		var center = document.evaluate(
+			"//h2[@id='titre2']/following-sibling::center",
+			document, null, 9, null
+		).singleNodeValue;
+	} catch(e) {
+		avertissement("Erreur d'initialisation du système de vue 2D");
+		window.console.error("[MZ] set2DViewSystem",e);
+		return;
+	}
+	
+	// Récupération de la dernière vue utilisée
 	var vueext = MZ_getValue('VUEEXT');
 	if(!vueext || !vue2Ddata[vueext]) {
-		// La vue Bricol'Trolls est employée par défaut
+		// sinon, la vue Bricol'Trolls est employée par défaut
 		vueext = 'Bricol\' Vue';
 	}
 	
-	/* Création du sélecteur de vue */
+	// Création du sélecteur de vue externe
 	selectVue2D = document.createElement('select');
 	selectVue2D.id = 'selectVue2D';
 	selectVue2D.className = 'SelectboxV2';
@@ -486,33 +580,72 @@ function set2DViewSystem() {
 	selectVue2D.value = vueext;
 	selectVue2D.onchange = refresh2DViewButton;
 	
-	/* Création du formulaire d'envoi (vide, le submit est géré via handler) */
+	// Création du formulaire d'envoi (vide, le submit est géré via handler)
 	var form = document.createElement('form');
 	form.id = 'viewForm';
 	
-	/* Insertion du système de vue */
-	var center = document.getElementById('titre2').nextSibling;
+	// Insertion du système de vue
 	var table = document.createElement('table');
 	var tr = appendTr(table);
 	var td = appendTd(tr);
 	td.appendChild(selectVue2D);
 	td = appendTd(tr);
-	td.style.fontSize = '0px'; // gère l'erreur de l'extra character
+	td.style.fontSize = '0px'; // gère le bug de l'extra character
 	td.appendChild(form);
 	center.insertBefore(table,center.firstChild);
 	insertBr(center.childNodes[1]);
 	
-	/* Appelle le handler pour initialiser le bouton de submit */
+	// Appelle le handler pour initialiser le bouton de submit
 	refresh2DViewButton();
 }
 
 /* [functions] Tableau d'Infos */
-function creerTableauInfos() {
-	var infoTab = document.getElementsByName('LimitViewForm')[0].childNodes[1];
-	infoTab.id = 'infoTab';
-	var thead = document.createElement('thead');
-	var tr = appendTr(thead,'mh_tdtitre');
-	var td = appendTdText(tr,'INFORMATIONS',true);
+function initialiseInfos() {
+	// DEBUG: prévoir désactivation complète du script si infoTab non trouvé
+	var
+		infoTab = document.getElementsByName('LimitViewForm')[0].
+			getElementsByTagName('table')[0],
+		tbody = infoTab.tBodies[0],
+		thead = infoTab.createTHead(),
+		tr = appendTr(thead,'mh_tdtitre'),
+		td = appendTdText(tr,'INFORMATIONS',true),
+		span = document.createElement('span');
+	
+	// Récupération de la position du joueur
+	try {
+		var strPos = document.evaluate(
+				".//li/b/text()[contains(.,'X = ')]",
+				infoTab, null, 9, null
+			).singleNodeValue.nodeValue;
+		// ***INIT GLOBALE*** currentPosition
+		currentPosition = getNumbers(strPos);
+		debugMZ("retrievePosition(): "+currentPosition);
+	} catch(e) {
+		// Si on ne trouve pas le "X ="
+		window.console.error("[MZ Vue] Position joueur non trouvée",e);
+	}
+	
+	// Récupération des portées (max et limitée) de la vue
+	try {
+		var	
+			nodes = document.evaluate(
+				".//li/b/text()[contains(.,'horizontalement') "+
+				"or contains(.,'verticalement')]",
+				infoTab, null, 7, null
+			),
+			array = [];
+		for(var i=0 ; i<4 ; i++) {
+			array.push(parseInt(nodes.snapshotItem(i).nodeValue));
+		}
+		// ***INIT GLOBALE*** porteeVue
+		porteeVue = array;
+	} catch(e) {
+		window.console.error("[MZ Vue] Portées Vue non trouvées",e);
+	}
+
+	infoTab.id = 'infoTab'; // Pour scripts externes
+	tbody.id = 'corpsInfoTab';
+	tbody.rows[0].cells[0].colSpan = 2;
 	td.colSpan = 3;
 	td.onmouseover = function() {
 		this.style.cursor = 'pointer';
@@ -524,9 +657,21 @@ function creerTableauInfos() {
 	td.onclick = function() {
 		toggleTableauInfos(false);
 	};
-	infoTab.childNodes[1].firstChild.childNodes[1].colSpan = 2;
-	infoTab.replaceChild(thead,infoTab.firstChild);
-	tr = appendTr(infoTab.childNodes[1],'mh_tdpage');
+	
+	span.id = 'msgInfoTab';
+	span.style.display = 'none';
+	appendText(
+		span,
+		' => Position : X = '+currentPosition[0]+
+		', Y = '+currentPosition[1]+
+		', N = '+currentPosition[2]+
+		' --- Vue : '+porteeVue[0]+'/'+porteeVue[1]+
+		' ('+porteeVue[2]+'/'+porteeVue[3]+')',
+		true
+	);
+	td.appendChild(span);
+	
+	tr = appendTr(tbody,'mh_tdpage');
 	td = appendTdText(tr,'EFFACER : ',true);
 	td.align = 'center';
 	td.className = 'mh_tdtitre';
@@ -555,7 +700,7 @@ function creerTableauInfos() {
 		td,'delniveau',toggleLevelColumn,' Les Niveaux'
 	).firstChild;
 	checkBoxDiplo = appendCheckBoxSpan(
-		td,'deldiplo',refreshDiplo,' La Diplo'
+		td,'delDiplo',refreshDiplo,' La Diplomatie'
 	).firstChild;
 	checkBoxTrou = appendCheckBoxSpan(
 		td,'deltrou',filtreLieux,' Les Trous'
@@ -581,47 +726,43 @@ function creerTableauInfos() {
 }
 
 function toggleTableauInfos(firstRun) {
-	if(cursorOnLink) { return; } // DEBUG: héritage Tilk, utilité inconnue
-	
-	var infoTab = document.getElementById('infoTab');
+	var
+		msg = document.getElementById('msgInfoTab'),
+		corps = document.getElementById('corpsInfoTab');
 	if(!firstRun) {
 		MZ_setValue('INFOPLIE', !MZ_getValue('INFOPLIE') );
 	}
 	if(MZ_getValue('INFOPLIE')) {
-		var vues = getPorteVue();
-		var pos = getPosition();
-		appendText(
-			infoTab.firstChild.firstChild.firstChild,
-			' => Position : X = '+pos[0]+', Y = '+pos[1]+', N = '+pos[2]
-			+' --- Vue : '+vues[0]+'/'+vues[1]+' ('+vues[2]+'/'+vues[3]+')',
-			true
-		);
-		infoTab.childNodes[1].style.display = 'none';
-	}
-	else {
-		var titre = infoTab.firstChild.firstChild.firstChild.childNodes[1];
-		titre.parentNode.removeChild(titre);
-		infoTab.childNodes[1].style.display = '';
+		msg.style.display = '';
+		corps.style.display = 'none';
+	} else {
+		msg.style.display = 'none';
+		corps.style.display = '';
 	}
 }
 
 /* [functions] Filtres */
 function prepareFiltrage(ref,width) {
-	// = Initialise le filtre 'ref'
-	var tdTitre = document.getElementsByName(ref)[0].parentNode;
+// = Initialise le filtre 'ref'
+	try {
+		var tdTitre = document.getElementsByName(ref.toLowerCase())[0].parentNode;
+	} catch(e) {
+		window.console.warn('[prepareFiltrage] Référence filtrage '+ref+' non trouvée\n'+e);
+		return false;
+	}
 	if(width) { tdTitre.width = width; }
 	// Ajout du tr de Filtrage (masqué)
 	var tbody = tdTitre.parentNode.parentNode;
 	var tr = appendTr(tbody,'mh_tdpage');
 	tr.style.display = 'none';
-	tr.id = 'tr_filtre_'+ref;
+	tr.id = 'trFiltre'+ref;
 	var td = appendTd(tr);
 	td.colSpan = 5;
 	// Ajout du bouton de gestion de Filtrage
 	var tdBtn = insertTd(tdTitre.nextSibling);
-	tdBtn.id = 'td_insert_'+ref;
+	tdBtn.id = 'tdInsert'+ref;
 	var btn = appendButton(tdBtn,'Filtrer');
-	btn.id = 'btn_filtre_'+ref;
+	btn.id = 'btnFiltre'+ref;
 	btn.onclick =	function() {
 		debutFiltrage(ref)
 	};
@@ -630,8 +771,8 @@ function prepareFiltrage(ref,width) {
 
 function debutFiltrage(ref) {
 	// = Handler de début de filtrage (filtre 'ref')
-	document.getElementById('tr_filtre_'+ref).style.display = '';
-	var btn = document.getElementById('btn_filtre_'+ref);
+	document.getElementById('trFiltre'+ref).style.display = '';
+	var btn = document.getElementById('btnFiltre'+ref);
 	btn.value = 'Annuler Filtre';
 	btn.onclick = function() {
 		finFiltrage(ref);
@@ -639,35 +780,27 @@ function debutFiltrage(ref) {
 }
 
 function finFiltrage(ref) {
-	// = Handler de fin de filtrage (filtre 'ref')
+// = Handler de fin de filtrage (filtre 'ref')
 	/* On réassigne le bouton 'Filtrer' */
-	document.getElementById('tr_filtre_'+ref).style.display = 'none';
-	var btn = document.getElementById('btn_filtre_'+ref);
+	document.getElementById('trFiltre'+ref).style.display = 'none';
+	var btn = document.getElementById('btnFiltre'+ref);
 	btn.value = 'Filtrer';
 	btn.onclick = function() {
 		debutFiltrage(ref);
 	};
-	/* Réinitialisation filtres et nettoyage */
-	document.getElementById('str_'+ref).value = '';
-	/* DEBUG
-	var str = 'filtre'+ref[0].toUpperCase()+ref.slice(1);
-	window[str](); // Fonction non trouvée. Aucune fonction MZ en fait ?! */
+	/* Réinitialisation filtres */
+	document.getElementById('str'+ref).value = '';
 	switch(ref) {
-		case 'monstres':
-			document.getElementById('niv_min_monstres').value = 0;
-			document.getElementById('niv_max_monstres').value = 0;
-			filtreMonstres();
+		case 'Monstres':
+			document.getElementById('nivMinMonstres').value = 0;
+			document.getElementById('nivMaxMonstres').value = 0;
 			break;
-		case 'trolls':
-			document.getElementById('str_guildes').value = '';
-			filtreTrolls();
-			break;
-		case 'tresors':
-			filtreTresors();
-			break;
-		case 'lieux':
-			filtreLieux();
+		case 'Trolls':
+			document.getElementById('strGuildes').value = '';
 	}
+	/* Nettoyage (=lance le filtre) */
+	// Ici this = MZ.global = sandBox de travail de MZ
+	this['filtre'+ref]();
 }
 
 function ajoutFiltreStr(td,nomBouton,id,onClick) {
@@ -701,62 +834,43 @@ function ajoutFiltreMenu(tr,id,onChange) {
 
 function ajoutDesFiltres() {
 	/* Monstres */
-	var td = prepareFiltrage('monstres',120);
-	ajoutFiltreStr(td,'Nom du monstre:','str_monstres',filtreMonstres);
-	appendText(td,'\u00a0\u00a0\u00a0');
-	appendText(td,'Niveau Min: ');
-	comboBoxNiveauMin = ajoutFiltreMenu(td,'niv_min_monstres',filtreMonstres);
-	appendText(td,'\u00a0');
-	appendText(td,'Niveau Max: ');
-	comboBoxNiveauMax = ajoutFiltreMenu(td,'niv_max_monstres',filtreMonstres);
-	/* Trõlls */
-	td = prepareFiltrage('trolls',50);
-	ajoutFiltreStr(td,'Nom du trõll:','str_trolls',filtreTrolls);
-	appendText(td,'\u00a0\u00a0\u00a0');
-	ajoutFiltreStr(td,'Nom de guilde:','str_guildes',filtreTrolls);
-	/* Trésors */
-	td = prepareFiltrage('tresors',55);
-	ajoutFiltreStr(td,'Nom du trésor:','str_tresors',filtreTresors);
-	/* Lieux */
-	td = prepareFiltrage('lieux',40);
-	ajoutFiltreStr(td,'Nom du lieu:','str_lieux',filtreLieux);
-}
-
-/* [functions] Boutons d'envoi d'infos aux bases */
-function appendSendBouton(paren, url, id, func, text) {
-	var myForm = document.createElement('form');
-	myForm.method = 'post';
-	myForm.align = 'right';
-	myForm.action = url;
-	myForm.name = 'frmvue';
-	myForm.target = '_blank';
-	appendHidden(myForm,id,'');
-	appendSubmit(myForm,text,
-		function() {
-			document.getElementsByName(id)[0].value = func();
-		}
-	);
-	paren.appendChild(myForm);
-}
-
-/*
-function putBoutonMonstres() {
-	var td = document.getElementById('td_insert_monstres');
-	td = insertTd(td.nextSibling);
-	td.style.fontSize = '0px';
-	appendSendBouton(td,
-		'http://mountyhall.clubs.resel.fr/script/v2/get_monstres.php',
-		'listemonstres', getMonstres,
-		'Envoyer les monstres aux Teubreux');
+	var td = prepareFiltrage('Monstres',120);
+	if(td) {
+		ajoutFiltreStr(td,'Nom du monstre:','strMonstres',filtreMonstres);
+		appendText(td,'\u00a0\u00a0\u00a0');
+		appendText(td,'Niveau Min: ');
+		comboBoxNiveauMin = ajoutFiltreMenu(td,'nivMinMonstres',filtreMonstres);
+		appendText(td,'\u00a0');
+		appendText(td,'Niveau Max: ');
+		comboBoxNiveauMax = ajoutFiltreMenu(td,'nivMaxMonstres',filtreMonstres);
 	}
-*/
+	/* Trõlls */
+	td = prepareFiltrage('Trolls',50);
+	if(td) {
+		ajoutFiltreStr(td,'Nom du trõll:','strTrolls',filtreTrolls);
+		appendText(td,'\u00a0\u00a0\u00a0');
+		ajoutFiltreStr(td,'Nom de guilde:','strGuildes',filtreTrolls);
+	}
+	/* Trésors */
+	td = prepareFiltrage('Tresors',55);
+	if(td) {
+		ajoutFiltreStr(td,'Nom du trésor:','strTresors',filtreTresors);
+	}
+	/* Lieux */
+	td = prepareFiltrage('Lieux',40);
+	if(td) {
+		ajoutFiltreStr(td,'Nom du lieu:','strLieux',filtreLieux);
+	}
+}
 
+/* [functions] Bouton d'envoi vers Troogle */
+// WARNING - Nécessite que le Filtre Monstres ait été mis en place
 function envoiVersTroogle() {
+// = 1er Handler bouton Troogle
 	try {
 		var bouton = document.getElementById('bouton_Troogle');
-	}
-	catch(e) {
-		console.log('Bouton d\'envoi non trouvé.');
+	} catch(e) {
+		window.console.log('Bouton d\'envoi non trouvé.');
 		return;
 	}
 	bouton.onclick = lireInfosTroogle;
@@ -773,10 +887,10 @@ function envoiVersTroogle() {
 		var debutLot = parLot*i+1;
 		var finLot = parLot*(i+1);
 		var data = //'#'+numTroll+
-			bddMonstres(debutLot,finLot)+'\n'
-			+bddTresors(debutLot,finLot)+'\n'
-			+bddLieux(debutLot,finLot);
-		MZ_xmlhttpRequest({
+			bddMonstres(debutLot,finLot)+'\n'+
+			bddTresors(1,debutLot,finLot)+'\n'+
+			bddLieux(debutLot,finLot);
+		FF_XMLHttpRequest({
 			method: 'POST',
 			url: 'http://troogle-beta.aacg.be/view_submission',
 			//url: 'http://weblocal/POST_RESULT/index.php',
@@ -795,8 +909,7 @@ function envoiVersTroogle() {
 					if(resp.indexOf('succès')==-1) {
 						erreur = true;
 					}
-				}
-				catch(e) {
+				} catch(e) {
 					console.error(e);
 					return;
 				}
@@ -805,8 +918,7 @@ function envoiVersTroogle() {
 				for(var j=0 ; j<lotStop ; j++) {
 					if(responses[j]) {
 						txt += txt ? '\n'+responses[j] : responses[j];
-					}
-					else {
+					} else {
 						fini = false;
 					}
 				}
@@ -820,17 +932,19 @@ function envoiVersTroogle() {
 }
 
 function lireInfosTroogle() {
+// = 2e Handler bouton Troogle
 	try {
 		var infos = document.getElementById('bouton_Troogle').info;
-	}
-	catch(e) {
+	} catch(e) {
+		avertissement('[lireInfosTroogle] Bouton Troogle non trouvé');
+		window.console.error('[lireInfosTroogle]\n'+e);
 		return;
 	}
 	window.alert(infos);
 }
 
 function putBoutonTroogle() {
-	var td = document.getElementById('td_insert_monstres');
+	var td = document.getElementById('tdInsertMonstres');
 	td = insertTd(td.nextSibling);
 	td.style.fontSize = '0px';
 	var bouton = document.createElement('input');
@@ -845,67 +959,355 @@ function putBoutonTroogle() {
 	td.appendChild(bouton);
 }
 
-function putBoutonLieux() {
-	var td = document.getElementById('td_insert_lieux');
-	td = insertTd(td.nextSibling);
-	td.style.fontSize = '0px';
-	appendSendBouton(td,
-		'http://mountyzilla.tilk.info/scripts/lieux.php',
-		'listelieux', getLieux,
-		'Ajouter les lieux à la base MZ');
-	}
-
 
 /*-[functions]--------------- Fonctions Monstres -----------------------------*/
 
-/* [functions] Affichage des niveaux */
+/* [functions] Affichage de la colonne des niveaux */
 function insertLevelColumn() {
-	// déclenché si toggle vers affichage du niveau
-	var td = insertTdText(getMonstreLevelNode(0), 'Niveau', true);
+// Déclenché si bascule vers affichage des niveaux des mobs
+	var td = insertTdText(getMonstreLevelNode(0),'Niveau',true);
 	td.width = 25;
 	for(var i=1 ; i<=nbMonstres ; i++) {
 		td = insertTdText(getMonstreLevelNode(i), '-');
 		td.onclick = function() {
-			getCDM(getMonstreNomByTR(this.parentNode),
-			getMonstreIDByTR(this.parentNode) );
-			};
+			basculeCDM(
+				getMonstreNomByTR(this.parentNode),
+				getMonstreIDByTR(this.parentNode)
+			);
+		};
 		td.onmouseover = function() {
 			this.style.cursor = 'pointer';
 			this.className = 'mh_tdtitre';
-			};
+		};
 		td.onmouseout = function() {
-			this.className = 'mh_tdpage';
-			};
+			if(this.parentNode.diploActive=='oui') {
+				this.className = '';
+			} else {
+				this.className = 'mh_tdpage';
+			}
+		};
 		td.style = 'font-weight:bold;text-align:center;';
 		if(isCDMsRetrieved) {
-			// recall des levels si mémorisés
+			// Rappel des niveaux si mémorisés
 			td.innerHTML = listeLevels[i];
-			}
 		}
 	}
+}
 
 function toggleLevelColumn() {
-	// = EventListener checkBox noLevel
+// = Handler checkBox noLevel
 	if(!saveCheckBox(checkBoxLevels,'NOLEVEL')) {
 		insertLevelColumn();
-		if(!isCDMsRetrieved) {
-			retrieveCDMs();
-			}
-		}
-	else if(getMonstreLevelNode(0).textContent=='Niveau') {
+		if(!isCDMsRetrieved) { retrieveCDMs(); }
+	} else if(getMonstreLevelNode(0).textContent=='Niveau') {
 		for(var i=0 ; i<=nbMonstres ; i++) {
 			if(isCDMsRetrieved) {
-				// mémorisation des levels pour recall
+				// Mémorisation des niveaux pour rappel éventuel
 				listeLevels[i] = getMonstreLevelNode(i).innerHTML;
-				}
+			}
+			// Suppression du td Niveau
 			tr_monstres[i].removeChild(getMonstreLevelNode(i));
+		}
+	}
+}
+
+/* [functions] Gestion de l'AFFICHAGE des CdMs */
+function basculeCDM(nom,id) {
+// = Bascule l'affichage des popups CdM
+	if(listeCDM[id]) {
+		if(!document.getElementById('popupCDM'+id)) {
+			afficherCDM(nom, id);
+		} else {
+			cacherPopupCDM('popupCDM'+id);
+		}
+	}
+	// DEBUG: prévoir un "else" ou désactiver l'effet onmouseover si pas de CdM
+}
+
+function cacherPopupCDM(titre) {
+	var popup = document.getElementById(titre);
+	popup.parentNode.removeChild(popup);
+}
+
+/* DEBUG: Section à mettre à jour */
+var selectionFunction;
+
+function startDrag(evt) {
+	winCurr = this.parentNode;
+	evt = evt || window.event; // est-ce utile sous FF ? sous FF24+ ?
+	offsetX = evt.pageX - parseInt( winCurr.style.left );
+	offsetY = evt.pageY - parseInt( winCurr.style.top );
+	selectionFunction = document.body.style.MozUserSelect;
+	document.body.style.MozUserSelect = 'none';
+	winCurr.style.MozUserSelect = 'none';
+	return false;
+}
+
+function stopDrag(evt) {
+	winCurr.style.MozUserSelect = selectionFunction;
+	document.body.style.MozUserSelect = selectionFunction;
+	winCurr = null;
+}
+
+function drag(evt) {
+	if(winCurr==null) { return; }
+	evt = evt || window.event;
+	winCurr.style.left = (evt.pageX - offsetX)+'px';
+	winCurr.style.top = (evt.pageY - offsetY)+'px';
+	return false;
+}
+/* FIN DEBUG */
+
+function afficherCDM(nom,id) {
+// Crée la table de CdM du mob n° id
+	var donneesMonstre = listeCDM[id];
+	/* Début création table */
+	var table = createCDMTable(id,nom,donneesMonstre); // voir Libs
+	table.id = 'popupCDM'+id;
+	table.style =
+		'position:fixed;'+
+		'z-index:1;'+
+		'top:'+(300+(30*nbCDM))%(30*Math.floor((window.innerHeight-400)/30))+'px;'+
+		'left:'+(window.innerWidth-365)+'px;'+
+		'width:300px;'+
+		'height:200px;';
+	/* Ajout du titre avec gestion Drag & Drop */
+	var tr = table.firstChild;
+	tr.style.cursor = 'move';
+	tr.onmousedown = startDrag;
+	tr.onmouseup = stopDrag;
+	/* Ajout du bouton "Fermer" */
+	tr = appendTr(table.childNodes[1], 'mh_tdtitre');
+	tr.onmouseover = function() {
+		this.style.cursor = 'pointer';
+		this.className = 'mh_tdpage';
+	};
+	tr.onmouseout = function() {
+		this.className = 'mh_tdtitre';
+	};
+	tr.idcdm = id;
+	tr.onclick = function() {
+		cacherPopupCDM('popupCDM'+this.idcdm);
+		this.className = 'mh_tdtitre';
+	};
+	td = appendTdText(tr,'Fermer',true);
+	td.colSpan = 2;
+	td.style = 'text-align:center;';
+	nbCDM++;
+	/* Fin création table & Affichage */
+	document.body.appendChild(table);
+}
+
+/* [functions] Gestion de l'AFFICHAGE des Infos de combat */
+function initPopup() {
+	popup = document.createElement('div');
+	popup.id = 'popup';
+	popup.className = 'mh_textbox';
+	popup.style =
+		'position: absolute;'+
+		'border: 1px solid #000000;'+
+		'visibility: hidden;'+
+		'display: inline;'+
+		'z-index: 3;'+
+		'max-width: 400px;';
+	document.body.appendChild(popup);
+}
+
+function showPopupTactique(evt) {
+	var id = this.id;
+	var nom = this.nom;
+	var texte = getAnalyseTactique(id,nom);
+	if(texte=='') { return; }
+	popup.innerHTML = texte;
+	popup.style.left = Math.min(evt.pageX+15,window.innerWidth-400)+'px';
+	popup.style.top = (evt.pageY+15)+'px';
+	popup.style.visibility = 'visible';
+}
+
+function hidePopup() {
+	popup.style.visibility = 'hidden';
+}
+
+/* [functions] Récupération / Computation des Infos Tactiques */
+// TODO à revoir
+function retireMarquage(nom) {
+	var i = nom.indexOf(']');
+	switch(i) {
+		case -1:
+		case nom.length-1:
+			return nom;
+		default:
+			return nom.slice(0,i+1);
+	}
+}
+
+function retrieveCDMs() {
+// Récupère les CdM disponibles dans la BDD
+// Lancé uniquement sur toggleLevelColumn
+	if(checkBoxLevels.checked) { return; }
+	
+	var str = '';
+	var begin = 1; // num de début de lot si plusieurs lots de CdM (501+ CdM)
+	var cdmMax = MZ_getValue(numTroll+'.MAXCDM');
+	cdmMax = Math.min(nbMonstres, cdmMax ? cdmMax : 500);
+	if(MZ_getValue('CDMID')==null) MZ_setValue('CDMID',1); // à quoi sert CDMID ??
+	
+	for(var i=1 ; i<=cdmMax ; i++) {
+		var nomMonstre = retireMarquage(getMonstreNom(i));
+		if(nomMonstre.indexOf(']') != -1) {
+			nomMonstre = nomMonstre.slice(0,nomMonstre.indexOf(']')+1);
+		}
+		// *** WARNING : PROXY RATIBUS ***
+		// *** NE PAS CHANGER la fonction obsolète 'escape' ***
+		str += 'nom[]='+escape(nomMonstre)+'$'+(
+			getMonstreDistance(i)<=5 ? getMonstreID(i) : -getMonstreID(i)
+		)+'&';
+		
+		if(i%500==0 || i==cdmMax) { // demandes de CdM par lots de 500 max
+			var url = 'http://cdm.mh.raistlin.fr/mz/monstres_0.9_post_FF.php';
+			
+			FF_XMLHttpRequest({
+				method: 'POST',
+				url: url,
+				headers : {
+					'User-agent': 'Mozilla/4.0 (compatible) Greasemonkey',
+					'Accept': 'application/atom+xml,application/xml,text/xml',
+					'Content-type':'application/x-www-form-urlencoded'
+				},
+				data: 'begin='+begin+'&idcdm='+MZ_getValue('CDMID')+'&'+str,
+				onload: function(responseDetails) {
+					try {
+						var texte = responseDetails.responseText;
+						var lines = texte.split('\n');
+						if(lines.length==0) { return; }
+						var begin2, end2, index;
+						for(var j=0 ; j<lines.length ; j++) {
+							var infos = lines[j].split(';');
+							if(infos.length<4) { continue; }
+							var idMonstre=infos[0];
+							var isCDM = infos[1];
+							index = parseInt(infos[2]);
+							var level = infos[3];
+							infos = infos.slice(3);
+							if(begin2==null) { begin2 = index; }
+							end2 = index;
+							listeCDM[idMonstre] = infos;
+							if(isCDM==1) {
+								getMonstreLevelNode(index).innerHTML = '<i>'+level+'</i>';
+							} else {
+								getMonstreLevelNode(index).innerHTML = level;
+							}
+						}
+						computeMission(begin2,end2);
+					} catch(e) {
+						window.console.error(
+							'[retrieveCDMs]\n'+e+'\n'+url+'\n'+texte
+						);
+					}
+				}
+			});
+			str = '';
+			begin = i+1;
+		}
+	}
+	isCDMsRetrieved=true;
+}
+
+function computeMission(begin,end) {
+// pk begin/end ? --> parce qu'au chargement c'est RetrieveCdMs qui le lance
+	computeVLC(begin,end);
+	if(!begin) begin=1;
+	if(!end) end=nbMonstres;
+	var str = MZ_getValue(numTroll+'.MISSIONS');
+	if(!str) { return; }
+	
+	var urlImg = MZimg+'mission.png';
+	var obMissions = JSON.parse(str);
+	
+	for(var i=end ; i>=begin ; i--) {
+		var mess = '';
+		for(var num in obMissions) {
+			var mobMission = false;
+			switch(obMissions[num].type) {
+				case 'Race':
+					var race = epure(obMissions[num].race.toLowerCase());
+					var nom = epure(getMonstreNom(i).toLowerCase());
+					if(nom.indexOf(race)!=-1) {
+						mobMission = true;
+					}
+					break;
+				case 'Niveau':
+					var donneesMonstre = listeCDM[getMonstreID(i)];
+					if(donneesMonstre) {
+						var nivMob = Number(donneesMonstre[0]);
+						var	nivMimi = Number(obMissions[num].niveau),
+							mod = obMissions[num].mod;
+						if((!isNaN(mod) && Math.abs(nivMimi-nivMob)<=Number(mod))
+							|| (isNaN(mod) && nivMob>=nivMimi)) {
+							mobMission = true;
+						}
+					}
+					break;
+				case 'Famille':
+					var donneesMonstre = listeCDM[getMonstreID(i)];
+					if(donneesMonstre) {
+						var familleMimi = epure(obMissions[num].famille.toLowerCase());
+						var familleMob = epure(donneesMonstre[1].toLowerCase());
+						if(familleMob.indexOf(familleMimi)!=-1) {
+							mobMission = true;
+						}
+					}
+					break;
+				case 'Pouvoir':
+					var donneesMonstre = listeCDM[getMonstreID(i)];
+					if(donneesMonstre) {
+						var pvrMimi = epure(obMissions[num].pouvoir.toLowerCase());
+						var pvrMob = epure(donneesMonstre[10].toLowerCase());
+						if(pvrMob.indexOf(pvrMimi)!=-1) {
+							mobMission = true;
+						}
+					}
+			}
+			if(mobMission) {
+				mess += mess ? '\n\n' : '';
+				mess += 'Mission '+num+' :\n'+obMissions[num].libelle;
+			}
+		}
+		if(mess) {
+			var td = getMonstreNomNode(i);
+			appendText(td,' ');
+			td.appendChild(createImage(urlImg,mess));
+		}
+	}
+}
+
+function computeVLC(begin,end) {
+// pk begin/end ? --> parce qu'au chargement c'est RetrieveCdMs qui le lance via computeMission
+	computeTactique(begin,end);
+	if(!begin) begin=1;
+	if(!end) end=nbMonstres;
+	var cache = getSortComp("Invisibilité")>0 || getSortComp("Camouflage")>0;
+	if(!cache)
+		return false;
+	var urlImg = "http://mountyzilla.tilk.info/scripts_0.9/images/oeil.png";
+	for(var i = end; i >= begin;i--)
+	{
+		var id = getMonstreID(i);
+		var donneesMonstre = listeCDM[id];
+		if(donneesMonstre && donneesMonstre.length>12)
+		{
+			if(donneesMonstre[12]==1)
+			{
+				var td = getMonstreNomNode(i);
+				td.appendChild(document.createTextNode(" "));
+				td.appendChild(createImage(urlImg, "Voit le caché"));
 			}
 		}
 	}
+}
 
-/* [functions] Infos Tactiques */
-// TODO à revoir
 function computeTactique(begin, end) {
+// pk begin/end ? --> parce qu'au chargement c'est RetrieveCdMs qui le lance via computeVLC
 	try {
 		if(!begin) begin = 1;
 		if(!end) end = nbMonstres;
@@ -917,26 +1319,28 @@ function computeTactique(begin, end) {
 			var nom = getMonstreNom(j);
 			var donneesMonstre = listeCDM[id];
 			if(donneesMonstre && nom.indexOf('Gowap')==-1) {
-				var td = getMonstreTdNom(j);
+				var td = getMonstreNomNode(j);
 				appendText(td,' ');
-				td.appendChild( createPopupImage2(MZimg+'calc2.png', id, nom) );
-				}
+				td.appendChild(
+					createImageTactique(MZimg+'calc2.png', id, nom)
+				);
 			}
 		}
+	}
 	catch(e) {
 		window.alert('Erreur computeTactique mob num : '+j+' :\n'+e)
-		}
-	filtreMonstres();
 	}
+	filtreMonstres();
+}
 
 function updateTactique() {
-	// = EventListener checkBox noTactique
+// = Handler checkBox noTactique
 	var noTactique = saveCheckBox(checkBoxTactique,'NOTACTIQUE');
 	if(!isCDMsRetrieved) return;
 	
 	if(noTactique) {
 		for(var i=nbMonstres ; i>0 ; i--) {
-			var tr = getMonstreTdNom(i);
+			var tr = getMonstreNomNode(i);
 			var img = document.evaluate("img[@src='"+MZimg+"calc2.png']",
 				tr, null, 9, null).singleNodeValue;
 			if(img) {
@@ -947,311 +1351,135 @@ function updateTactique() {
 		}
 	else
 		computeTactique();
-	}
+}
 
 function filtreMonstres() {
-	// = EventListener universel pour les fonctions liées aux monstres
+// = Handler universel pour les fonctions liées aux monstres
 	var urlImg = MZimg+'Competences/ecritureMagique.png',
 		urlEnchantImg = MZimg+'images/enchant.png';
+	
+	/* Vérification/Sauvegarde de tout ce qu'il faudra traiter */
 	var useCss = MZ_getValue(numTroll+'.USECSS')=='true';
 	var noGowaps = saveCheckBox(checkBoxGowaps,'NOGOWAP'),
-		noMythiques = saveCheckBox(checkBoxMythiques,'NOMYTH'),
 		noEngages = saveCheckBox(checkBoxEngages,'NOENGAGE'),
-		niveau_min = saveComboBox(comboBoxNiveauMin,'NIVEAUMINMONSTRE'),
-		niveau_max = saveComboBox(comboBoxNiveauMax,'NIVEAUMAXMONSTRE');
+		nivMin = saveComboBox(comboBoxNiveauMin,'NIVEAUMINMONSTRE'),
+		nivMax = saveComboBox(comboBoxNiveauMax,'NIVEAUMAXMONSTRE');
+	// old/new : détermine s'il faut ou non nettoyer les tr
 	var oldNOEM = true, noEM = true;
-	if(MZ_getValue('NOINFOEM')!='true')
-		noEM = saveCheckBox(checkBoxEM, 'NOEM'); // wtf ?
-	/* Génère la liste des mobs engagés */
+	if(MZ_getValue('NOINFOEM')!='true') {
+		noEM = saveCheckBox(checkBoxEM, 'NOEM');
+	}
+	// Filtrage par nom
+	var strMonstre = document.getElementById('strMonstres').value.toLowerCase();
+	// Génère la liste des mobs engagés (si filtrés)
 	if(noEngages && !isEngagesComputed) {
 		for(var i=nbTrolls ; i>0 ; i--) {
 			var pos = getTrollPosition(i);
-			if(!listeEngages[pos[0]]) listeEngages[pos[0]] = [];
-			if(!listeEngages[pos[0]][pos[1]]) listeEngages[pos[0]][pos[1]] = [];
+			if(!listeEngages[pos[0]]) { listeEngages[pos[0]]={}; }
+			if(!listeEngages[pos[0]][pos[1]]) { listeEngages[pos[0]][pos[1]]={}; }
 			listeEngages[pos[0]][pos[1]][pos[2]] = 1;
-			}
-		isEngagesComputed = true;
 		}
-	/* Filtrage par nom */
-	var strMonstre = document.getElementById('str_monstres').value.toLowerCase();
+		isEngagesComputed = true;
+	}
 	
-	/* FILTRAGE */
+	/*** FILTRAGE ***/
+	/* À computer :
+	 * - EM (nom suffit)
+	 * - Enchant (nom suffit)
+	 * - Mission (nécessite CdM)
+ 	 * - mob VlC (nécessite CdM)
+	 * Sans computation :
+	 * - Gowap ? engagé ?
+	 */
 	for(var i=nbMonstres ; i>0 ; i--) {
 		var pos = getMonstrePosition(i);
 		var nom = getMonstreNom(i).toLowerCase();
 		if(noEM!=oldNOEM) {
 			if(noEM) {
-				/* Si noEM false => true, on nettoie les td de Noms */
-				var tr = getMonstreTdNom(i);
+				// Si noEM passe de false à true, on nettoie les td "Nom"
+				// DEBUG: Sauf que ce serait carrément mieux avec des id...
+				var tr = getMonstreNomNode(i);
 				while(tr.childNodes.length>1) {
 					tr.removeChild(tr.childNodes[1]);
-					}
 				}
-			else {
-				var tr = getMonstreTdNom(i);
+			} else {
+				var tr = getMonstreNomNode(i);
 				var TypeMonstre=getEM(nom);
 				if(TypeMonstre!='') {
 					var infosCompo=compoMobEM(TypeMonstre);
 					if(infosCompo.length>0) {
 						tr.appendChild(document.createTextNode(' '));
 						tr.appendChild(createImage(urlImg, infosCompo));
-						}
 					}
 				}
 			}
+		}
 		if(needComputeEnchantement || (noEM!=oldNOEM && noEM)) {
 			var texte = getInfoEnchantementFromMonstre(nom);
 			if(texte!='') {
-				var tr = x_monstres[i].childNodes[checkBoxLevels.checked ? 2 : 3];
-				tr.appendChild(document.createTextNode(' '));
-				tr.appendChild(createImage(urlEnchantImg, texte));
+				var td = getMonstreNomNode(i);
+				td.appendChild(document.createTextNode(' '));
+				td.appendChild(createImage(urlEnchantImg, texte));
 			}
 		}
-
-		x_monstres[i].style.display =
-			(noGowaps
-				&& nom.indexOf('gowap apprivoisé')!=-1
-				&& getMonstreDistance(i)>1) ||
-			(noEngages
-				&& getMonstreDistance(i)!=0
-				&& listeEngages[pos[0]]
-				&& listeEngages[pos[0]][pos[1]]
-				&& listeEngages[pos[0]][pos[1]][pos[2]]) ||
-			(strMonstre!=''
-				&& nom.indexOf(strMonstre)==-1) ||
-			(niveau_min>0
-				&& getMonstreLevel(i)<=niveau_min
-				&& getMonstreDistance(i)>1
-				&& getMonstreDistance(i)!=-1 // wtf ?
-				&& nom.toLowerCase().indexOf("kilamo")==-1) || // wtf ???
-			(niveau_max>0
-				&& getMonstreLevel(i)>=niveau_max
-				&& getMonstreDistance(i)>1
-				&& getMonstreDistance(i)!=-1
-				&& nom.toLowerCase().indexOf("kilamo") == -1)
-			? 'none' : '';
 		
-		if(nom.indexOf('liche')==0
-			|| nom.indexOf('hydre')==0
-			|| nom.indexOf('balrog')==0
-			|| nom.indexOf('beholder')==0) {
-			if(!noMythiques) {
-				if(useCss)
-					x_monstres[i].setAttribute('class', 'mh_trolls_ennemis');
-				else {
-					x_monstres[i].setAttribute('class', '');
-					x_monstres[i].style.backgroundColor = '#FFAAAA';
-					}
-				}
-			}
-		else {
-			x_monstres[i].style.backgroundColor = '';
-			x_monstres[i].setAttribute('class', 'mh_tdpage');
-			}
-		}
+		tr_monstres[i].style.display = (
+			noGowaps &&
+			nom.indexOf('gowap apprivoisé')!=-1 &&
+			getMonstreDistance(i)>1
+		) || (
+			noEngages &&
+			getMonstreDistance(i)!=0 &&
+			listeEngages[pos[0]] &&
+			listeEngages[pos[0]][pos[1]] &&
+			listeEngages[pos[0]][pos[1]][pos[2]]
+		) || (
+			strMonstre!='' &&
+			nom.indexOf(strMonstre)==-1
+		) || (
+			nivMin>0 &&
+			getMonstreLevel(i)!=-1 &&
+			getMonstreLevel(i)<nivMin &&
+			getMonstreDistance(i)>1 &&
+			nom.toLowerCase().indexOf("kilamo")==-1  // wtf ?!...
+		) || (
+			nivMax>0 &&
+			getMonstreLevel(i)>nivMax &&
+			getMonstreDistance(i)>1 &&
+			nom.toLowerCase().indexOf("kilamo")==-1
+		) ? 'none' : '';
+	}
 	
 	if(MZ_getValue('NOINFOEM')!='true') {
 		if(noEM != oldNOEM) {
-			if(noEM) computeChargeProjoMonstre();
 			if(noEM && isCDMsRetrieved) computeMission();
-			}
-		oldNOEM = noEM;
 		}
+		oldNOEM = noEM;
+	}
 	
 	needComputeEnchantement = false;
-	}
-
-function retireMarquage(nom) {
-	var i = nom.indexOf(']');
-	switch(i) {
-		case -1:
-		case nom.length-1:
-			return nom;
-		default:
-			return nom.substring(0,i+1);
-		}
-	}
-
-function retrieveCDMs() {
-	if(checkBoxLevels.checked) return;
-
-	var str = '';
-	var begin = 1; // num de début de lot si plusieurs lots de CdM (>500 CdM)
-	var max = MZ_getValue(numTroll+'.MAXCDM');
-	max = Math.min(nbMonstres, (max) ? max : 500);
-	if(MZ_getValue('CDMID')==null) MZ_setValue('CDMID',1); // à quoi sert CDMID ??
-	
-	for(var i=1 ; i<=max ; i++) {
-		var nomMonstre = retireMarquage(getMonstreNom(i,true));
-		if(nomMonstre.indexOf(']') != -1)
-			nomMonstre = nomMonstre.substring(0,nomMonstre.indexOf(']')+1);
-		str += 'nom[]=' + escape(nomMonstre) + '$'
-			+ (getMonstreDistance(i) <= 5 ? getMonstreID(i) : -getMonstreID(i)) + '&';
-		
-		if(i%500==0 || i==max) { // demandes de CdM par lots de 500 max
-			var url = 'http://mountypedia.free.fr/mz/monstres_0.9_post_FF.php';
-			
-			MZ_xmlhttpRequest({
-				method: 'POST',
-				url: url,
-				headers : {
-					'User-agent': 'Mozilla/4.0 (compatible) Greasemonkey',
-					'Accept': 'application/atom+xml,application/xml,text/xml',
-					'Content-type':'application/x-www-form-urlencoded'
-				},
-				data: 'begin='+begin+'&idcdm='+MZ_getValue('CDMID')+'&'+str,
-				onload: function(responseDetails) {
-					try
-					{
-						var texte = responseDetails.responseText;
-						var lines = texte.split('\n');
-						if(lines.length==0)
-							return;
-						var begin2,end2,index;
-						for(var j=0;j<lines.length;j++) {
-							var infos = lines[j].split(';');
-							if(infos.length<4)
-								continue;
-							var idMonstre=infos[0];
-							var isCDM = infos[1];
-							index = parseInt(infos[2]);
-							var level = infos[3];
-							infos=infos.slice(3);
-							if(begin2==null)
-								begin2=index;
-							end2=index;
-							listeCDM[idMonstre] = infos;
-							if(isCDM==1)
-								x_monstres[index].childNodes[2].innerHTML='<i>'+level+'</i>';
-							else
-								x_monstres[index].childNodes[2].innerHTML=level;
-							}
-						computeMission(begin2,end2);
-					}
-					catch(e)
-					{
-						console.error(e+'\n'+url+'\n'+texte);
-					}
-					}
-				});
-			str = '';
-			begin = i + 1;
-			}
-		}
-	isCDMsRetrieved=true;
-	}
+}
 
 
 /*-[functions]---------------- Fonctions Trõlls ------------------------------*/
 
 function filtreTrolls() {
 	var noIntangibles = saveCheckBox(checkBoxIntangibles,'NOINT');
-	var strTroll = document.getElementById('str_trolls').value.toLowerCase();
-	var strGuilde = document.getElementById('str_guildes').value.toLowerCase();
+	var strTroll = document.getElementById('strTrolls').value.toLowerCase();
+	var strGuilde = document.getElementById('strGuildes').value.toLowerCase();
 	for(var i=1 ; i<=nbTrolls ; i++) {
-		var tds = tr_trolls[i].childNodes;
-		tr_trolls[i].style.display =
-			(noIntangibles && tds[2].firstChild.className=='mh_trolls_0')
-			|| (strTroll!=''
-				&& getTrollNomNode(i).textContent.toLowerCase().indexOf(strTroll)==-1)
-			|| (strGuilde!=''
-				&& (!tds[5].firstChild.firstChild
-					|| tds[5].textContent.toLowerCase().indexOf(strGuilde)==-1) )
-			? 'none' : '';
-		}
+		tr_trolls[i].style.display = (
+			noIntangibles &&
+			getTrollNomNode(i).firstChild.className=='mh_trolls_0'
+		) || (
+			strTroll!='' &&
+			getTrollNomNode(i).textContent.toLowerCase().indexOf(strTroll)==-1
+		) || (
+			strGuilde!='' &&
+			getTrollGuilde(i).toLowerCase().indexOf(strGuilde)==-1
+		) ? 'none' : '';
 	}
-
-/* [functions] Diplomatie */
-// TODO à revoir
-function refreshDiplo() {
-	if(saveCheckBox(checkBoxDiplo,'NODIPLO')) {
-		for(var i=nbTrolls ; i>0 ; i--) {
-			tr_trolls[i].style.backgroundColor = '';
-			tr_trolls[i].className = 'mh_tdpage';
-			}
-		return;
-		}
-	
-	if(!isDiploComputed) {
-		MZ_xmlhttpRequest({
-			method: 'GET',
-			url: 'http://mountyzilla.tilk.info/scripts_0.9/getTroll_FF.php?num='
-				+numTroll,
-			headers: {
-				'User-agent': 'Mozilla/4.0 (compatible) Mountyzilla',
-				'Accept': 'application/xml,text/xml',
-				},
-			onload: function(responseDetails) {
-				try	{
-					responseDetails.responseXML =
-						new DOMParser().parseFromString(
-							responseDetails.responseText,'text/xml'
-							);
-					var infosDiplo = responseDetails.responseXML;
-					if(infosDiplo.getElementsByTagName('error').length>0) {
-						MZ_setValue('NODIPLO','true');
-						var bouton=document.getElementsByName('deldiplo')[0];
-						bouton.checked=true;
-						window.alert(infosDiplo.getElementsByTagName('error')[0]
-							.firstChild.nodeValue);
-						return;
-						}
-					var infosDiploTrolls = infosDiplo.getElementsByTagName('troll');
-					for(var i=0 ; i<infosDiploTrolls.length ; i++) {
-						ct[parseInt(infosDiploTrolls[i].firstChild.nodeValue)] =
-							infosDiploTrolls[i].getAttribute("couleur");
-						}
-					var infosDiploGuildes = infosDiplo.getElementsByTagName('guilde');
-					for(var i=0 ; i<infosDiploGuildes.length ; i++) {
-						cg[parseInt(infosDiploGuildes[i].firstChild.nodeValue)] =
-							infosDiploGuildes[i].getAttribute("couleur");
-						}
-					isDiploComputed = true;
-					putRealDiplo();
-					}
-				catch(e) {
-					window.alert('Erreur Diplo :\n'+e)
-					}
-				}
-			});
-		}
-	else
-		putRealDiplo();
-	}
-
-function putRealDiplo() {
-	var useCss = MZ_getValue(numTroll+'.USECSS') == 'true';
-	for(var i=1 ; i<=nbTrolls ; i++) {
-		var troll = tr_trolls[i];
-		var cl = ct[getTrollID(i)];
-		var guildeID = getTrollGuildeID(i);
-		if(cl) {
-			if(useCss && cl=='#AAFFAA')
-				troll.className = 'mh_trolls_amis';
-			else if(useCss && cl=='#FFAAAA')
-				troll.className = 'mh_trolls_ennemis';
-			else {
-				troll.className = '';
-				troll.style.backgroundColor = cl;
-				}
-			}
-		else if(guildeID!=1) {
-			cl = cg[guildeID];
-			if(!cl)
-				continue;
-			if(useCss && cl == '#AAFFAA')
-				troll.className = 'mh_guildes_amis';
-			else if(useCss && cl == '#FFAAAA')
-				troll.className = 'mh_guildes_ennemis';
-			else if(useCss && cl == '#BBBBFF')
-				troll.className = 'mh_guildes_perso';
-			else {
-				troll.className = '';
-				troll.style.backgroundColor = cl;
-				}
-			}
-		}
-	}
+}
 
 /* [functions] Bulle PX Trolls */
 var bulle;
@@ -1261,19 +1489,19 @@ function initPXTroll() {
 	bulle.id = 'bulle';
 	bulle.className = 'mh_textbox';
 	bulle.style =
-		'position: absolute;'
-		+'border: 1px solid #000000;'
-		+'visibility: hidden;'
-		+'display: inline;'
-		+'z-index: 2;';
+		'position: absolute;'+
+		'border: 1px solid #000000;'+
+		'visibility: hidden;'+
+		'display: inline;'+
+		'z-index: 2;';
 	document.body.appendChild(bulle);
 
 	for(var i=nbTrolls ; i>0 ; i--) {
-		var td_niv = tr_trolls[i].childNodes[3];
+		var td_niv = getTrollNivNode(i);
 		td_niv.onmouseover = showPXTroll;
 		td_niv.onmouseout = hidePXTroll;
-		}
 	}
+}
 
 function showPXTroll(evt) {
 	var lvl = this.firstChild.nodeValue;
@@ -1281,25 +1509,27 @@ function showPXTroll(evt) {
 	bulle.style.left = evt.pageX+15+'px';
 	bulle.style.top = evt.pageY+'px';
 	bulle.style.visibility = 'visible';
-	}
+}
 
 function hidePXTroll() {
 	bulle.style.visibility = 'hidden';
-	}
+}
 
 /* [functions] Envoi PX / MP */
 function putBoutonPXMP() {
-	// Bouton d'initialisation du mode Envoi
-	var td = document.getElementById('td_insert_trolls');
+// Bouton d'initialisation du mode Envoi
+// WARNING - Nécessite que le Filtre Trõll ait été mis en place
+	var td = document.getElementById('tdInsertTrolls');
+	if(!td) { return; }
 	td.width = 100;
 	td = insertTd(td.nextSibling);
 	td.style.verticalAlign = 'top';
 	var bouton = appendButton(td,'Envoyer...',prepareEnvoi);
-	bouton.id = 'btn_envoi';
+	bouton.id = 'btnEnvoi';
 }
 
 function prepareEnvoi() {
-	// = EventListener bouton d'envoi
+// = 1er Handler du bouton d'envoi
 	
 	/* Ajout de la colonne des CheckBoxes */
 	var td = insertTdText(getTrollNomNode(0),'');
@@ -1310,7 +1540,7 @@ function prepareEnvoi() {
 	}
 	
 	/* Ajout du radio de choix PX ou MP */
-	var btnEnvoi = document.getElementById('btn_envoi');
+	var btnEnvoi = document.getElementById('btnEnvoi');
 	if(!btnEnvoi) { return; }
 	var tdEnvoi = btnEnvoi.parentNode;
 	appendText(tdEnvoi,' ');
@@ -1334,13 +1564,13 @@ function prepareEnvoi() {
 	insertButton(btnEnvoi,'Annuler',annuleEnvoi);
 	
 	/* Modification de l'effet du bouton Envoi */
-	document.getElementById('btn_envoi').onclick = effectueEnvoi;
+	document.getElementById('btnEnvoi').onclick = effectueEnvoi;
 }
 
 function annuleEnvoi() {
-	// = EventListener du bouton Annuler
+// = Handler bouton Annuler
 	/* Nettoyage du td du bouton Envoi */
-	var btnEnvoi = document.getElementById('btn_envoi');
+	var btnEnvoi = document.getElementById('btnEnvoi');
 	var tdEnvoi = btnEnvoi.parentNode;
 	while(tdEnvoi.firstChild) {
 		tdEnvoi.removeChild(tdEnvoi.firstChild);
@@ -1356,7 +1586,7 @@ function annuleEnvoi() {
 }
 
 function effectueEnvoi() {
-	// = Second Listener du bouton d'envoi PX MP (charge un nouveau frame)
+// = 2e Handler du bouton d'envoi (charge un nouveau frame)
 	var str='';
 	for(var i=nbTrolls ; i>0 ; i--) {
 		var chb = document.getElementById('envoi'+i);
@@ -1366,17 +1596,16 @@ function effectueEnvoi() {
 	}
 	var PXchecked = document.getElementById('radioPX').checked;
 	if(PXchecked) {
-		window.open('Actions/Play_a_DonPX.php?cat=8&dest='+str,'Contenu');
-	}
-	else {
+		window.open('./Actions/Play_a_DonPX.php?cat=8&dest='+str,'Contenu');
+	} else {
 		window.open('../Messagerie/MH_Messagerie.php?cat=3&dest='+str,'Contenu');
 	}
 }
 
 /*-[functions]---------------- Fonctions Trésors -----------------------------*/
 
-function filtreTresors() {	
-	// = EventListener ChB : gg, compos, bidouilles, non libres
+function filtreTresors() {
+// += Handler checkboxes : gg, compos, bidouilles, non libres
 	var noGG = saveCheckBox(checkBoxGG,'NOGG');
 	var noCompos = saveCheckBox(checkBoxCompos,'NOCOMP');
 	var noBidouilles = saveCheckBox(checkBoxBidouilles,'NOBID');
@@ -1387,48 +1616,272 @@ function filtreTresors() {
 			if(!listeEngages[pos[2]]) listeEngages[pos[2]] = [];
 			if(!listeEngages[pos[2]][pos[1]]) listeEngages[pos[2]][pos[1]] = [];
 			listeEngages[pos[2]][pos[1]][pos[0]] = 1;
-			}
-		isEngagesComputed = true;
 		}
-	var strTresor = document.getElementById('str_tresors').value.toLowerCase();
+		isEngagesComputed = true;
+	}
+	var strTresor = document.getElementById('strTresors').value.toLowerCase();
 	for(var i=nbTresors ; i>0 ; i--) {
 		var nom = getTresorNom(i);
 		var pos = getTresorPosition(i);
-		tr_tresors[i].style.display =
-			(noGG	
-				&& nom.indexOf('Gigots de Gob')!=-1) ||
-			(noCompos	
-				&& nom.indexOf('Composant')!=-1) ||
-			(noEngages
-				&& listeEngages[pos[2]]
-				&& listeEngages[pos[2]][pos[1]]
-				&& listeEngages[pos[2]][pos[1]][pos[0]]
-				&& getTresorDistance(i)>0) ||
-			(strTresor!=''
-				&& nom.toLowerCase().indexOf(strTresor)==-1) ||
-			(noBidouilles
-				&& nom.indexOf('[Bidouille]')!=-1)
-			? 'none' : '';
-		}
+		tr_tresors[i].style.display = (
+			noGG &&
+			nom.indexOf('Gigots de Gob')!=-1
+		) || (
+			noCompos &&
+			nom.indexOf('Composant')!=-1
+		) || (
+			noEngages &&
+			listeEngages[pos[2]] &&
+			listeEngages[pos[2]][pos[1]] &&
+			listeEngages[pos[2]][pos[1]][pos[0]] &&
+			getTresorDistance(i)>0
+		) || (
+			strTresor!='' &&
+			nom.toLowerCase().indexOf(strTresor)==-1
+		) || (
+			noBidouilles &&
+			nom.indexOf('Bidouille')!=-1
+		) ? 'none' : '';
 	}
+}
 
 
 /*-[functions]----------------- Fonctions Lieux ------------------------------*/
 
 function filtreLieux() {
-	// = EventListener ChB trous
+// += Handler checkbox trous
 	var noTrou = saveCheckBox(checkBoxTrou,'NOTROU');
-	var strLieu = document.getElementById('str_lieux').value.toLowerCase();
+	var strLieu = document.getElementById('strLieux').value.toLowerCase();
 	for(var i=nbLieux ; i>0 ; i--) {
-		tr_lieux[i].style.display =
-			(strLieu
-				&& getLieuNom(i).toLowerCase().indexOf(strLieu)==-1)
-			|| (noTrou
-				&& getLieuNom(i).toLowerCase().indexOf("trou de météorite")!=-1
-				&& getLieuDistance(i)>1)
-			? 'none' : '';
+		tr_lieux[i].style.display = (
+			strLieu &&
+			getLieuNom(i).toLowerCase().indexOf(strLieu)==-1
+		) || (
+			noTrou &&
+			getLieuNom(i).toLowerCase().indexOf("trou de météorite")!=-1 &&
+			getLieuDistance(i)>1
+		) ? 'none' : '';
+	}
+}
+
+
+/*-[functions]-------------------- Diplomatie --------------------------------*/
+
+function refreshDiplo() {
+	MZ_setValue(numTroll+'.diplo.off',
+		checkBoxDiplo.checked?'true':'false'
+	);
+	if(isDiploRaw) { computeDiplo(); }
+	appliqueDiplo();
+}
+
+function computeDiplo() {
+// On extrait les données de couleur et on les stocke par id
+// Ordre de préséance :
+//  source Guilde < source Perso
+//  guilde cible < troll cible
+	
+	/* Diplo de Guilde */
+	var diploGuilde = MZ_getValue(numTroll+'.diplo.guilde') ?
+		JSON.parse(MZ_getValue(numTroll+'.diplo.guilde')) : {};
+	if(diploGuilde && diploGuilde.isOn=='true') {
+		// Guilde perso
+		if(diploGuilde.guilde) {
+			Diplo.Guilde[diploGuilde.guilde.id] = {
+				couleur: diploGuilde.guilde.couleur,
+				titre: 'Ma Guilde'
+			};
+		}
+		// Guildes/Trolls A/E
+		for(var AE in {Amis:0,Ennemis:0}) {
+			for(var i=0 ; i<5 ; i++) {
+				if(diploGuilde[AE+i]) {
+					for(var type in {Guilde:0,Troll:0}) {
+						var liste = diploGuilde[AE+i][type].split(';');
+						for(var j=liste.length-2 ; j>=0 ; j--) {
+							Diplo[type][liste[j]] = {
+								couleur: diploGuilde[AE+i].couleur,
+								titre: diploGuilde[AE+i].titre
+							};
+						}
+					}
+				}
+			}
 		}
 	}
+	
+	/* Diplo Perso */
+	var diploPerso = MZ_getValue(numTroll+'.diplo.perso') ?
+		JSON.parse(MZ_getValue(numTroll+'.diplo.perso')) : {};
+	if(diploPerso && diploPerso.isOn=='true') {
+		for(var type in {Guilde:0,Troll:0,Monstre:0}) {
+			for(var id in diploPerso[type]) {
+				Diplo[type][id] = diploPerso[type][id];
+			}
+		}
+	}
+	if(diploPerso.mythiques) {
+		Diplo.mythiques = diploPerso.mythiques;
+	}
+	
+	isDiploRaw = false;
+}
+
+function appliqueDiplo() {
+	var aAppliquer = Diplo;
+	if(checkBoxDiplo.checked) {
+		// Pour retour à l'affichage basique sur désactivation de la diplo
+		aAppliquer = {
+			Guilde: {},
+			Troll: {},
+			Monstre: {}
+		};
+	}
+	
+	/* On applique "aAppliquer" */
+	// Diplo Trõlls
+	for(var i=nbTrolls ; i>0 ; i--) {
+		var idG = getTrollGuildeID(i);
+		var idT = getTrollID(i);
+		var tr = tr_trolls[i];
+		if(aAppliquer.Troll[idT]) {
+			tr.className = '';
+			var descr = aAppliquer.Troll[idT].titre;
+			if(descr) {
+				getTrollNomNode(i).title = descr
+			}
+			tr.style.backgroundColor = aAppliquer.Troll[idT].couleur;
+		} else if(aAppliquer.Guilde[idG]) {
+			tr.className = '';
+			var descr = aAppliquer.Guilde[idG].titre;
+			if(descr) {
+				getTrollNomNode(i).title = descr
+			}
+			tr.style.backgroundColor = aAppliquer.Guilde[idG].couleur;
+		} else {
+			tr.className = 'mh_tdpage';
+			getTrollNomNode(i).title = '';
+		}
+	}
+	
+	// Diplo Monstres
+	for(var i=nbMonstres ; i>0 ; i--) {
+		var id = getMonstreID(i);
+		var nom = getMonstreNom(i).toLowerCase();
+		if(aAppliquer.Monstre[id]) {
+			tr_monstres[i].className = '';
+			tr_monstres[i].style.backgroundColor = aAppliquer.Monstre[id].couleur;
+			tr_monstres[i].diploActive = 'oui';
+			var descr = aAppliquer.Monstre[id].titre;
+			if(descr) {
+				getMonstreNomNode(i).title = descr;
+			}
+		} else if(aAppliquer.mythiques &&
+			(nom.indexOf('liche')==0 ||
+			nom.indexOf('hydre')==0 ||
+			nom.indexOf('balrog')==0 ||
+			nom.indexOf('beholder')==0)) {
+			tr_monstres[i].className = '';
+			tr_monstres[i].style.backgroundColor = aAppliquer.mythiques;
+			tr_monstres[i].diploActive = 'oui';
+			getMonstreNomNode(i).title = 'Monstre Mythique';
+		} else {
+			tr_monstres[i].className = 'mh_tdpage';
+			tr_monstres[i].diploActive = '';
+		}
+	}
+}
+
+
+/*-[functions]---------------- Actions à distance ----------------------------*/
+
+function computeActionDistante(dmin,dmax,keltypes,oussa,urlIcon,message) {
+	var monN = parseInt(getPosition()[2]);
+	
+	for(var type in keltypes) {
+		alt = oussa=='self' ? type.slice(0,-1) : oussa;
+		for(var i=this['nb'+type] ; i>0 ; i--)  {
+			var tr = this['tr_'+type.toLowerCase()][i];
+			var sonN = this['get'+type.slice(0,-1)+'Position'](i)[2];
+			var d = this['get'+type.slice(0,-1)+'Distance'](i);
+			
+			if(sonN==monN && d>=dmin && d<=dmax) {
+				var iconeAction = document.evaluate(
+					"./descendant::img[@alt='"+alt+"']",
+					tr, null, 9, null
+				).singleNodeValue;
+				if(iconeAction) {
+					if(iconeAction.title) {
+						iconeAction.title += "\n"+message;
+					} else {
+						iconeAction.title = message;
+					}
+					iconeAction.src = urlIcon;
+				} else {
+					var tdAction = tr.getElementsByTagName('td')[1];
+					var icon = document.createElement('img');
+					icon.src = urlIcon;
+					icon.height = 20;
+					icon.alt = alt;
+					icon.title = message;
+					tdAction.appendChild(icon);
+				}
+			}
+		}
+	}
+}
+
+function computeCharge() {
+	computeActionDistante(1,
+		getPortee(
+			Math.ceil(MZ_getValue(numTroll+".caracs.pv")/10)+
+			MZ_getValue(numTroll+".caracs.regeneration")
+		),
+		{'Monstres':1, 'Trolls':1},
+		'Attaquer',
+		MHicons+'E_Metal09.png',
+		'Cible à portée de Charge'
+	);
+}
+
+function computeProjo() {
+	computeActionDistante(0,
+		getPortee(
+			MZ_getValue(numTroll+".caracs.vue")+
+			MZ_getValue(numTroll+".caracs.vue.bm")
+		),
+		{'Monstres':1, 'Trolls':1},
+		'Attaquer',
+		MHicons+'S_Fire05.png',
+		'Cible à portée de Projo'
+	);
+}
+
+function computeTelek() {
+	computeActionDistante(0,
+		Math.floor((
+			MZ_getValue(numTroll+".caracs.vue")+
+			MZ_getValue(numTroll+".caracs.vue.bm")
+		)/2),
+		{'Tresors':1},
+		'Telek',
+		MHicons+'S_Magic04.png',
+		'Trésor à portée de Télékinésie'
+	);
+}
+
+function computeLdP() {
+	computeActionDistante(0,
+		2+Math.floor((
+			MZ_getValue(numTroll+".caracs.vue")+
+			MZ_getValue(numTroll+".caracs.vue.bm")
+		)/5),
+		{'Monstres':1, 'Trolls':1},
+		'self',
+		MHicons+'P_Red01.png',
+		'Cible à portée de Lancer de Potions'
+	);
+}
 
 
 /*-[functions]--------------- Systèmes Tactiques -----------------------------*/
@@ -1504,7 +1957,7 @@ function putInfosTrolls() {
 	for(i=nbTrolls ; i>0 ; i--) {
 		var infos = infosTrolls[getTrollID(i)];
 		if(infos) {
-			/* PAs dipos */
+			/* PAs dispos */
 			var span = document.createElement('span');
 			span.title = infos[3];
 			appendText(span, infos[4]+' PA' );
@@ -1543,536 +1996,101 @@ function putInfosTrolls() {
 	}
 
 
-/* [functions] Gros tas de fonctions à ranger */
+/* Mode Tétalanvert! ---------------------------------------------------------*/
 
-// POPUP CDM
-
-function getCDM(nom, id) {
-	if(listeCDM[id]) {
-		if(!document.getElementById("popupCDM" + id))
-			afficherCDM(nom, id);
-		else
-			cacherPopupCDM("popupCDM" + id);
-	}
+function calculeDistance(maPos,posArr) {
+	return Math.max(
+		Math.abs(maPos[0]-posArr[0]),
+		Math.abs(maPos[1]-posArr[1]),
+		Math.abs(maPos[2]-posArr[2])
+	);
 }
 
-function initPopup() {
-	popup = document.createElement('div');
-	popup.id = 'popup';
-	popup.className = 'mh_textbox';
-	popup.style =
-		'position: absolute;'
-		+'border: 1px solid #000000;'
-		+'visibility: hidden;'
-		+'display: inline;'
-		+'z-index: 3;'
-		+'max-width: 400px;';
-	document.body.appendChild(popup);
-	}
-
-function showPopup(evt) {
-	var texte = this.getAttribute('texteinfo');
-	popup.innerHTML = texte;
-	popup.style.left = evt.pageX + 15 + 'px';
-	popup.style.top = evt.pageY + 'px';
-	popup.style.visibility = "visible";
-}
-
-function showPopup2(evt) {
-	var id = this.getAttribute("id");
-	var nom = this.getAttribute("nom");
-	var texte = getAnalyseTactique(id,nom);
-	if(texte=="")
-		return;
-	popup.innerHTML = texte;
-	popup.style.left = Math.min(evt.pageX + 15,window.innerWidth-400) + 'px';
-	popup.style.top = evt.pageY+15 + 'px';
-	popup.style.visibility = "visible";
-}
-
-function hidePopup() {
-	popup.style.visibility = "hidden";
-}
-
-function createPopupImage(url, text)
-{
-	var img = document.createElement('img');
-	img.setAttribute('src',url);
-	img.setAttribute('align','ABSMIDDLE');
-	img.setAttribute("texteinfo",text);
-	img.addEventListener("mouseover", showPopup,true);
-	img.addEventListener("mouseout", hidePopup,true);
-	return img;
-}
-
-function createPopupImage2(url, id, nom)
-{
-	var img = document.createElement('img');
-	img.setAttribute('src',url);
-	img.setAttribute('align','ABSMIDDLE');
-	img.setAttribute("id",id);
-	img.setAttribute("nom",nom);
-	img.addEventListener("mouseover", showPopup2,true);
-	img.addEventListener("mouseout", hidePopup,true);
-	return img;
-}
-
-
-
-
-function recomputeTypeTrolls()
-{
-	for(var i = 0; i < listeTags; i++) 
-	{
-		computeTypeTrolls(listeTags[i],listeTagsInfos[i]);
-	}
-	for(var i = 0; i < listeTagsGuilde; i++) 
-	{
-		computeTypeGuildes(listeTagsGuilde[i],listeTagsInfosGuilde[i]);
-	}
-}
-
-function setAllTags(infoTrolls,infoGuildes)
-{
-	for(var i = 1; i < nbTrolls+1; i++) 
-	{
-		var infos = infoGuildes[getTrollGuildeID(i)];
-		if(infos) 
-		{
-			var tr = document.evaluate("td/a[contains(@href,'EAV')]/..",
-			x_trolls[i], null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-			for(var j=0;j<infos.length;j++)
-			{
-				tr.appendChild(document.createTextNode(" "));
-				tr.appendChild(createPopupImage(infos[j][0], infos[j][1]));
-			}
-		}
-		infos = infoTrolls[getTrollID(i)];
-		if(infos) 
-		{
-			var tr = document.evaluate("td/a[contains(@href,'EPV')]/..",
-			x_trolls[i], null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-			for(var j=0;j<infos.length;j++)
-			{
-				tr.appendChild(document.createTextNode(" "));
-				tr.appendChild(createPopupImage(infos[j][0], infos[j][1]));
-			}
+function inversionCoord() {
+	var maPos = getPosition();
+	var listeOffsets = {
+		'monstres':checkBoxLevels.checked?4:3,
+		'trolls':6,
+	};
+	for(var type in listeOffsets) {
+		var trList = this['tr_'+type];
+		var offset = listeOffsets[type];
+		for(var i=trList.length-1 ; i>0 ; i--) {
+			var oldX = parseInt(trList[i].cells[offset].textContent);
+			var oldY = parseInt(trList[i].cells[offset+1].textContent);
+			var oldN = parseInt(trList[i].cells[offset+2].textContent);
+			trList[i].cells[offset].innerHTML = oldY;
+			trList[i].cells[offset+1].innerHTML = oldX;
+			trList[i].cells[0].innerHTML = calculeDistance(maPos,[oldY,oldX,oldN]);
 		}
 	}
 }
-
-function analyseTagFile(data)
-{
-	var icones = new Array();
-	var descriptions = new Array();
-	var infoTrolls = new Array();
-	var infoGuildes = new Array();
-	
-	var lignes = data.split("\n");
-	for(var i=0;i<lignes.length;i++)
-	{
-		try
-		{
-			var data = lignes[i].split(";");
-			if(data.length<=1)
-				continue;
-			if(data[0]=="I")
-			{
-				icones.push(lignes[i].substring(lignes[i].indexOf(";")+1));
-			}
-			else if(data[0]=="D")
-			{
-				descriptions.push(bbcode(lignes[i].substring(lignes[i].indexOf(";")+1)));
-			}
-			else if(data[0]=="T")
-			{
-				if(data.length<=2)
-				continue;
-				var id = data[1]*1;
-				var icone = icones[data[2]*1];
-				var texte = "";
-				for(var j=3;j<data.length;j++)
-					texte+=descriptions[data[j]*1];
-				var info = new Array(icone,texte);
-				if(infoTrolls[id] == null)
-					infoTrolls[id] = new Array();
-				infoTrolls[id].push(info);
-			}
-			else if(data[0]=="G")
-			{
-				if(data.length<=2)
-					continue;
-				var id = data[1]*1;
-				var icone = icones[data[2]*1];
-				var texte = "";
-				for(var j=3;j<data.length;j++)
-					texte+=descriptions[data[j]*1];
-				var info = new Array(icone,texte);
-				if(infoGuildes[id] == null)
-					infoGuildes[id] = new Array();
-				infoGuildes[id].push(info);
-			}
-		}
-		catch(e)
-		{
-			window.alert(e);
-			break;
-		}
-	}
-	if(infoGuildes.length!=0 || infoTrolls.length!=0)
-		setAllTags(infoTrolls,infoGuildes);
-}
-
-function computeTag()
-{
-	try
-	{
-	initPopup();
-	if(MZ_getValue(numTroll+'.TAGSURL')==null || MZ_getValue(numTroll+'.TAGSURL')=='')
-		return false;
-	var tagsurl = MZ_getValue(numTroll+'.TAGSURL');
-	var listeTagsURL = tagsurl.split("$");
-	for(var i=0;i<listeTagsURL.length;i++)
-	{
-		if(listeTagsURL[i].toLowerCase().indexOf("http")==0)
-		{
-			//appendNewScript(listeTagsURL[i]);
-			MZ_xmlhttpRequest({
-			    method: 'GET',
-			    url: listeTagsURL[i],
-			    headers: {
-			        'User-agent': 'Mozilla/4.0 (compatible) Mountyzilla',
-			        'Accept': 'application/xml,text/xml',
-			    },
-			    onload: function(responseDetails) {
-					try
-					{
-						analyseTagFile(responseDetails.responseText);
-					}
-					catch(e)
-					{
-						window.alert(e);
-					}
-				}
-			});
-		}
-	}
-	}
-	catch(e) {window.alert(e);}
-}
-
-function computeTelek()
-{
-	if(getSortComp("Télékinésie")==0)
-		return false;
-	var urlImg = "http://mountyzilla.tilk.info/scripts_0.9/images/Sorts/telekinesie.png";
-	var trolln = getPosition()[2];
-	for(var i = nbTresors+1; --i >= 1;) {
-		var pos = getTresorPosition(i);
-		if(pos[2]==trolln)
-		{
-			var tr = x_tresors[i].childNodes[2];
-			tr.appendChild(document.createTextNode(" "));
-			tr.appendChild(createImage(urlImg, "Trésor transportable par Télékinésie"));
-		}	
-	}
-}
-
-function getPortee(param) {
-	return Math.ceil((Math.sqrt(19 + 8 * (param + 3)) - 7) / 2);
-}
-
-function computeChargeProjo()
-{
-	var urlImgCharge = "http://mountyzilla.tilk.info/scripts_0.9/images/Competences/charger.png";
-	var urlImgProjo = "http://mountyzilla.tilk.info/scripts_0.9/images/Sorts/projectileMagique.png";
-
-	var trolln = getPosition()[2];
-	if(!computeChargeProjoMonstre()) return false;
-	
-	var charger = getSortComp("Charger")!=0;
-	var projo = getSortComp("Projectile Magique")!=0;
-	if(!charger && !projo)
-	{
-		return false;
-	}
-	var porteeCharge = -1;
-	var porteeProjo = -1;
-	if(charger)
-	{
-		var aux = Math.ceil(MZ_getValue(numTroll+".caracs.pv") / 10) + MZ_getValue(numTroll+".caracs.regeneration");
-		porteeCharge = getPortee(aux);
-	}
-	if(projo)
-	{
-		porteeProjo = getPortee(MZ_getValue(numTroll+".caracs.vue.bm")+MZ_getValue(numTroll+".caracs.vue"));
-	}
-	for(var i = 1; i < nbTrolls+1; i++) 
-	{
-		var id = getTrollID(i);
-		var pos = getTrollPosition(i);
-		var dist = getTrollDistance(i);
-		if(dist>0 && pos[2] == trolln && dist<=porteeCharge)
-		{
-			var tr = x_trolls[i].childNodes[2];
-			tr.appendChild(document.createTextNode(" "));
-			tr.appendChild(createImage(urlImgCharge, "Accessible en charge"));
-		}
-		if(pos[2] == trolln && dist<=porteeProjo)
-		{
-			var tr = x_trolls[i].childNodes[2];
-			tr.appendChild(document.createTextNode(" "));
-			tr.appendChild(createImage(urlImgProjo, "Touchable avec un projectile magique"));
-		}
-
-	}
-}
-
-function computeChargeProjoMonstre()
-{
-	var urlImgCharge = "http://mountyzilla.tilk.info/scripts_0.9/images/Competences/charger.png";
-	var urlImgProjo = "http://mountyzilla.tilk.info/scripts_0.9/images/Sorts/projectileMagique.png";
-	var charger = getSortComp("Charger")!=0;
-	var projo = getSortComp("Projectile Magique")!=0;
-	var trolln = getPosition()[2];
-	if(!charger && !projo)
-	{
-		return false;
-	}
-	var porteeCharge = -1;
-	var porteeProjo = -1;
-	if(charger)
-	{
-		var aux = Math.ceil(MZ_getValue(numTroll+".caracs.pv") / 10) + MZ_getValue(numTroll+".caracs.regeneration");
-		porteeCharge = getPortee(aux);
-	}
-	if(projo)
-	{
-		porteeProjo = getPortee(MZ_getValue(numTroll+".caracs.vue.bm")+MZ_getValue(numTroll+".caracs.vue"));
-	}
-	
-	var urlImg = "http://mountyzilla.tilk.info/scripts_0.9/images/oeil.png";
-	for(var i = nbMonstres+1; --i >= 1;) 
-	{
-		var id = getMonstreID(i);
-		var pos = getMonstrePosition(i);
-		var dist = getMonstreDistance(i);
-		if(dist>0 && pos[2] == trolln && dist<=porteeCharge)
-		{
-			var tr = x_monstres[i].childNodes[checkBoxLevels.checked ? 2 : 3];
-			tr.appendChild(document.createTextNode(" "));
-			tr.appendChild(createImage(urlImgCharge, "Accessible en charge"));
-		}
-		if(pos[2] == trolln && dist<=porteeProjo)
-		{
-			var tr = x_monstres[i].childNodes[checkBoxLevels.checked ? 2 : 3];
-			tr.appendChild(document.createTextNode(" "));
-			tr.appendChild(createImage(urlImgProjo, "Touchable avec un projectile magique"));
-		}
-	}
-	return true;
-}
-
-function computeVLC(begin,end) {
-// pk begin/end ? --> parce qu'au chargement c'est RetrieveCdMs qui le lance via computeMission
-	computeTactique(begin,end);
-	if(!begin) begin=1;
-	if(!end) end=nbMonstres;
-	var cache = getSortComp("Invisibilité")>0 || getSortComp("Camouflage")>0;
-	if(!cache)
-		return false;
-	var urlImg = "http://mountyzilla.tilk.info/scripts_0.9/images/oeil.png";
-	for(var i = end; i >= begin;i--)
-	{
-		var id = getMonstreID(i);
-		var donneesMonstre = listeCDM[id];
-		if(donneesMonstre && donneesMonstre.length>12)
-		{
-			if(donneesMonstre[12]==1)
-			{
-				var tr = x_monstres[i].childNodes[checkBoxLevels.checked ? 2 : 3];
-				tr.appendChild(document.createTextNode(" "));
-				tr.appendChild(createImage(urlImg, "Voit le caché"));
-			}
-		}
-	}
-}
-
-
-function computeMission(begin,end) {
-// pk begin/end ? --> parce qu'au chargement c'est RetrieveCdMs qui le lance
-	computeVLC(begin,end);
-	if(!begin) begin=1;
-	if(!end) end=nbMonstres;
-	if(!MZ_getValue(numTroll+'.MISSION') || MZ_getValue(numTroll+'.MISSION')=='') return false;
-	
-	var urlImg = 'http://mountyzilla.tilk.info/scripts_0.9/images/mission.png';
-	var infosMission = MZ_getValue(numTroll+'.MISSION').split('$');
-	for(var i=end ; i>=begin ; i--) {
-		var id = getMonstreID(i);
-		var nom = getMonstreNom(i).toLowerCase();
-		if(infosMission[0]=='R') { // Si étape Race
-			if(epure(nom).indexOf(epure(infosMission[2].toLowerCase()))!=-1) {
-				var tr = tr_monstres[i].childNodes[checkBoxLevels.checked ? 2 : 3];
-				tr.appendChild(document.createTextNode(' '));
-				tr.appendChild(createImage(urlImg,infosMission[4]));
-				}
-			}
-		else if(infosMission[0]=='N') { // Si étape Niveau
-			var donneesMonstre = listeCDM[id];
-			if(donneesMonstre) {
-				var niveau = parseInt(infosMission[2]);
-				var mod = infosMission[3];
-				if(parseInt(mod) && Math.abs(parseInt(donneesMonstre[0])-niveau)<=parseInt(mod)
-					|| mod=='plus' && donneesMonstre[0]>=niveau) {
-					var tr = tr_monstres[i].childNodes[checkBoxLevels.checked ? 2 : 3];
-					tr.appendChild(document.createTextNode(' '));
-					tr.appendChild(createImage(urlImg, infosMission[5]));
-					}
-				}
-			}
-		else if(infosMission[0]=='F') { // Si étape Famille
-			var donneesMonstre = listeCDM[id];
-			if(donneesMonstre) {
-				if(epure(donneesMonstre[1]).toLowerCase().indexOf(epure(infosMission[2].toLowerCase()))!=-1) {
-					var tr = tr_monstres[i].childNodes[checkBoxLevels.checked ? 2 : 3];
-					tr.appendChild(document.createTextNode(' '));
-					tr.appendChild(createImage(urlImg, infosMission[4]));
-					}
-				}
-			}
-		else if(infosMission[0]=='E') { // Si étape 'sous l'effet d'une capa'
-			var donneesMonstre = listeCDM[id];
-			if(donneesMonstre) {
-				if(epure(donneesMonstre[10]).toLowerCase().indexOf(epure(infosMission[2].toLowerCase())+' =>')!=-1) {
-					var tr = tr_monstres[i].childNodes[checkBoxLevels.checked ? 2 : 3];
-					tr.appendChild(document.createTextNode(' '));
-					tr.appendChild(createImage(urlImg, infosMission[4]));
-					}
-				}
-			}
-		}
-	}
-
-function afficherCDM(nom, id) {
-	var donneesMonstre = listeCDM[id];
-	var table = createCDMTable(id,nom,donneesMonstre);
-	table.setAttribute('id', 'popupCDM'+id );
-	table.setAttribute('style', 'display: none; position: fixed; z-index: 1; top: '+ (300
-			+ (30 * nbCDM)) % (30 * Math.floor((window.innerHeight - 400) / 30)) + 'px; left: '
-			+ (window.innerWidth - 365) + 'px; width: 300px; height: 200px;');
-	mainTabs[0].parentNode.appendChild(table);
-
-	var tr = table.firstChild;
-	tr.setAttribute('style', 'cursor:move;');
-	tr.addEventListener("mousedown", startDrag, true);
-//	tr.addEventListener("mousemove", drag, true);
-	tr.addEventListener("mouseup", stopDrag, true);
-	tr = appendTr(table.childNodes[1], 'mh_tdtitre');
-	tr.setAttribute('onmouseover', "this.style.cursor = 'pointer'; this.className = 'mh_tdpage';");
-	tr.setAttribute('onmouseout', "this.className = 'mh_tdtitre';");
-	tr.setAttribute('cdmindex',id);
-	tr.addEventListener("click", function() {id=this.getAttribute("cdmindex");cacherPopupCDM( 'popupCDM' + id); this.className = 'mh_tdtitre';},true);
-	td = appendTdText(tr, 'Fermer', true);
-	td.setAttribute('colspan', '2');
-	td.setAttribute('style', 'text-align:center;');
-	nbCDM++;
-	table.style.display = '';
-}
-
-var selectionFunction;
-
-function startDrag(evt) {
-
-	winCurr = this.parentNode;
-	evt = evt || window.event;
-	offsetX = evt.pageX - parseInt( winCurr.style.left );
-	offsetY = evt.pageY - parseInt( winCurr.style.top );
-	selectionFunction = document.body.style.MozUserSelect;
-	document.body.style.MozUserSelect="none";
-	winCurr.style.MozUserSelect="none";
-	
-	return false;
-}
-
-function stopDrag(evt) {
-	winCurr.style.MozUserSelect=selectionFunction;
-	document.body.style.MozUserSelect = selectionFunction;
-	winCurr = null;
-}
-
-function drag(evt) {
-
-	if(winCurr == null)
-		return;
-	evt = evt || window.event;
-	winCurr.style.left = (evt.pageX - offsetX)+'px';
-	winCurr.style.top = (evt.pageY - offsetY)+'px';
-	return false;
-}
-
-function cacherPopupCDM(titre) {
-	var popup = document.getElementById(titre);
-	popup.parentNode.removeChild(popup);
-}
-
-
-function savePosition() {
-	var pos = getPosition();
-	MZ_setValue(numTroll+'.position.X',pos[0]);
-	MZ_setValue(numTroll+'.position.Y',pos[1]);
-	MZ_setValue(numTroll+'.position.N',pos[2]);
-	}
 
 
 /*                             Partie principale                              */
 
-try
-{
-start_script(31);
+try {
+	start_script(31);
 	
+	initialiseInfos();
+	savePosition();
 
-creerTableauInfos();
-ajoutDesFiltres();
-set2DViewSystem();
-//putBoutonMonstres();
-putBoutonTroogle();
-putBoutonLieux();
-putBoutonPXMP();
+	// Fonctionnalité "Têtalenvert" cachée, en test :
+	if(MZ_getValue(numTroll+'.VERLAN')=='true') {
+		inversionCoord();
+	}
+	
+	ajoutDesFiltres();
+	set2DViewSystem();
+	//putBoutonTroogle();
+	putBoutonPXMP();
+	
+	synchroniseFiltres();
+	toggleLevelColumn();
 
-
-//800 ms
-synchroniseFiltres();
-toggleLevelColumn();
-savePosition();
-
-//400 ms
-{
+	refreshDiplo();
+	
+	//400 ms
 	var noGG = saveCheckBox(checkBoxGG, "NOGG");
 	var noCompos = saveCheckBox(checkBoxCompos, "NOCOMP");
 	var noBidouilles = saveCheckBox(checkBoxBidouilles, "NOBID");
 	var noGowaps = saveCheckBox(checkBoxGowaps, "NOGOWAP");
-	var noMythiques = saveCheckBox(checkBoxMythiques, "NOMYTH");
 	var noEngages = saveCheckBox(checkBoxEngages, "NOENGAGE");
 	var noTresorsEngages =
 		saveCheckBox(checkBoxTresorsNonLibres, "NOTRESORSNONLIBRES");
 	var noTrou = saveCheckBox(checkBoxTrou, "NOTROU");
 	var noIntangibles = saveCheckBox(checkBoxIntangibles, "NOINT");
 	filtreMonstres();
-	if(noIntangibles) filtreTrolls();
-	if(noGG || noCompos || noBidouilles || noTresorsEngages) filtreTresors();
-	if(noTrou) filtreLieux();
-}
-refreshDiplo();
-initPXTroll();
-computeTag();
-computeTelek();
-computeChargeProjo();
-putScriptExterne();
+	if(noIntangibles) {
+		filtreTrolls();
+	}
+	if(noGG || noCompos || noBidouilles || noTresorsEngages) {
+		filtreTresors();
+	}
+	if(noTrou) {
+		filtreLieux();
+	}
 
-displayScriptTime();
-}
-catch(e)
-{
-window.alert(e);
+	initPopup();
+	initPXTroll();
+
+	if(getTalent("Projectile Magique")!=0) {
+		computeProjo();
+	}
+	if(getTalent("Charger")!=0) {
+		computeCharge();
+	}
+	if(getTalent("Télékinésie")!=0) {
+		computeTelek();
+	}
+	if(getTalent("Lancer de Potions")!=0) {
+		computeLdP();
+	}
+	
+	putScriptExterne();
+	
+	displayScriptTime();
+} catch(e) {
+	avertissement("[MZ] Une erreur s'est produite.");
+	window.console.error("[MZ] Erreur générale Vue",e);
 }

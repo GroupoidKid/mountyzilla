@@ -15,8 +15,10 @@
 *    along with Mountyzilla; if not, write to the Free Software                  *
 *    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA  *
 *********************************************************************************/
-/* 2013-08-19 : correction auto syntaxe alert */
 
+// Script désactivé en attendant la màj vers le nouveau système de missions.
+
+/*
 var listeCDM = new Array();
 var idMonstre=-1;
 var nomMonstre="";
@@ -41,7 +43,7 @@ function treateMission() {
 		str += 'nom[]=' + escape(nomMonstre) + '$'+idMonstre+'&';
 		if (i % 50 == 49 || i == nodes.snapshotLength - 1) 
 		{
-			MZ_xmlhttpRequest({
+			FF_XMLHttpRequest({
 				method: 'GET',
 				url: 'http://mountypedia.free.fr/mz/monstres_0.9_FF.php?begin='+Math.floor(i/50)+'&idcdm=' + MZ_getValue('CDMID') + '&' + str,
 				headers : {
@@ -157,7 +159,7 @@ function computeMission(begin,end)
 				}
 			}
 			//Ca sert à rien de frapper un monstre de ce type, il faut son pouvoir actif...
-/*			else if(infosMission[0]=="P")
+				else if(infosMission[0]=="P")
 			{
 				var donneesMonstre = listeCDM[id];
 				if(donneesMonstre)
@@ -169,7 +171,7 @@ function computeMission(begin,end)
 						tr.appendChild(createImage(urlImg, infosMission[4]));
 					}
 				}
-			}*/
+			}
 		}
 	}
 }
@@ -179,3 +181,4 @@ start_script();
 treateMission();
 
 displayScriptTime();
+*/

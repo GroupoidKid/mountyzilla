@@ -23,20 +23,23 @@
  */
 
 var MZimg = 'http://mountyzilla.tilk.info/scripts_0.9/images/';
+var MHicons = '/mountyhall/Images/Icones/';
+// Active l'affichage des log de DEBUG (fonction debugMZ(str))
+var MZ_DEBUG = false;
 
 /*---------------- mise à jour de variables globales utiles ------------------*/
+// utilisé pour accès bdd (un peu partout) :
 var numTroll = MZ_getValue('NUM_TROLL');
-// utilisé pour accès bdd (un peu partout)
+// utilisé dans vue pour PX :
 var nivTroll = MZ_getValue('NIV_TROLL');
-// utilisé dans vue pour PX
+// utilisés dans actions et vue (calculs SR) :
 var mmTroll = MZ_getValue(numTroll+'.caracs.mm');
-// utilisé dans actions et vue (calculs SR)
 var rmTroll = MZ_getValue(numTroll+'.caracs.rm');
-// utilisé dans actions et vue (calculs SR)
 
-/* DEBUG: NETTOYAGE */
-MZ_removeValue(numTroll+'.POISS');
-/* FIN DEBUG */
+/* DEBUG: NETTOYAGE TAGS */
+if(MZ_getValue(numTroll+'.TAGSURL')) {
+	MZ_removeValue(numTroll+'.TAGSURL');
+}
 
 /*-[functions]------------ Fonctions durée de script -------------------------*/
 var date_debut = null;
@@ -92,6 +95,76 @@ function addScript(src) {
 function appendNewScript(src,paren) {
 	MZ_appendNewScript(src);
 	}
+
+
+/*-[functions]---------- DEBUG: Communication serveurs -----------------------*/
+
+function debugMZ(str){
+    if(MZ_DEBUG){
+        window.console.debug('[MZ_DEBUG] '+str);
+        if(typeof str === "object"){
+            window.console.debug(str);
+        }
+    }
+}
+
+function FF_XMLHttpRequest(MZ_XHR_Ob) {
+	var request = new XMLHttpRequest();
+	request.open(MZ_XHR_Ob.method,MZ_XHR_Ob.url);
+	for(var head in MZ_XHR_Ob.headers) {
+		request.setRequestHeader(head,MZ_XHR_Ob.headers[head]);
+	}
+	request.onreadystatechange = function() {
+		if(request.readyState!=4) { return; }
+		if(request.error) {
+			if(MZ_XHR_Ob.onerror) {
+				MZ_XHR_Ob.onerror(request);
+			}
+		}
+		else if(MZ_XHR_Ob.onload) {
+			/* DEBUG: Ajouter à request les pptés de MZ_XHR_Ob à transmettre */
+			MZ_XHR_Ob.onload(request);
+		}
+	};
+	request.send(MZ_XHR_Ob.data);
+}
+
+
+/*-[functions]-------------- Interface utilisateur ---------------------------*/
+
+function avertissement(txt,duree) {
+	if(!duree) { duree = 5000; }
+	var div = document.createElement('div');
+	// On numérote les avertissements pour destruction sélective
+	var num = document.getElementsByName('avertissement').length;
+	div.num = num;
+	// Numéro enregistré dans le DOM pour récupération sur getElementsByName()
+	div.setAttribute('name','avertissement');
+	div.className = 'mh_textbox';
+	div.style =
+		'position:fixed;'+
+		'top:'+(10+15*num)+'px;'+
+		'left:'+(10+5*num)+'px;'+
+		'border:1px solid #000000;'+
+		'z-index:'+(2+num)+';'+
+		'cursor:crosshair;';
+	div.innerHTML = txt;
+	div.onclick=function(){ tueAvertissement(this.num) };
+	document.body.appendChild(div);
+	// Destruction automatique de l'avertissement après 3 sec :
+	window.setTimeout(function(){ tueAvertissement(num) },duree);
+}
+
+function tueAvertissement(num) {
+	var divs = document.getElementsByName('avertissement');
+	if(divs.length==0) { return; }
+	for(var i=0 ; i<divs.length ; i++) {
+		if(divs[i].num==num) {
+			divs[i].parentNode.removeChild(divs[i]);
+			return;
+		}
+	}
+}
 
 
 /*-[functions]-------------- Modifications du DOM ----------------------------*/
@@ -194,7 +267,7 @@ function appendTextbox(paren,type,nam,size,maxlength,value) {
 	input.name = nam;
 	input.id = nam;
 	input.size = size;
-	input.maxlength = maxlength;
+	input.maxLength = maxlength;
 	if(value) input.value = value;
 	paren.appendChild(input);
 	return input;
@@ -348,9 +421,9 @@ function aff(nb) {
 	}
 
 function getNumber(str) {
-	var nbrs = str.match(/\d+/);
-	return Number(nbrs);
-	}
+	var nbr = str.match(/\d+/);
+	return nbr ? Number(nbr[0]) : Number.NaN;
+}
 
 function getNumbers(str) {
 	var nbrs = str.match(/-?\d+/g);
@@ -871,7 +944,7 @@ arrayTalents = {
 	'Camouflage':'Camou',
 	'Charger':'Charger',
 	'Connaissance des Monstres':'CdM',
-	//'Construire un Piege':'Piege',
+	'Construire un Piege':'Piege',
 	'Piege a Feu':'PiegeFeu',
 	'Piege a Glue':'PiegeGlue',
 	'Contre-Attaquer':'CA',
@@ -881,7 +954,7 @@ arrayTalents = {
 	'Dressage':'Dressage',
 	'Ecriture Magique':'EM',
 	'Frenesie':'Frenesie',
-	//'Golemologie':'Golemo',
+	'Golemologie':'Golemo',
 	'Golem de cuir':'GolemCuir',
 	'Golem de metal':'GolemMetal',
 	'Golem de mithril':'GolemMithril',
@@ -971,10 +1044,10 @@ function removeAllTalents() {
 		}
 	}
 
-function isProfilActif() { // what for ? 
+function isProfilActif() { // DEBUG: Réfléchir à l'utilité de cette fonction
 	var att = MZ_getValue(numTroll+'.caracs.attaque');
-	var attbmp = MZ_getValue(numTroll+'.caracs.attaque.bmp');;
-	var attbmm = MZ_getValue(numTroll+'.caracs.attaque.bmm');;
+	var attbmp = MZ_getValue(numTroll+'.caracs.attaque.bmp');
+	var attbmm = MZ_getValue(numTroll+'.caracs.attaque.bmm');
 	var mm = MZ_getValue(numTroll+'.caracs.mm');
 	var deg = MZ_getValue(numTroll+'.caracs.degats');
 	var degbmp = MZ_getValue(numTroll+'.caracs.degats.bmp');
@@ -988,10 +1061,10 @@ function isProfilActif() { // what for ?
 	}
 
 
-/*-[functions]---------------- Gestions des CDMs -----------------------------*/
+/*-[functions]---------------- Gestion des CDMs ------------------------------*/
 
 function getPVsRestants(pv,bless,vue) {
-	bless = Number(bless.match(/\d+/));
+	bless = Number(bless.match(/\d+/)[0]);
 	if(bless==0) return null;
 	var pvminmax = pv.match(/\d+/g);
 	if(bless==95) {
@@ -1031,6 +1104,17 @@ var listeTitres = ['Niveau','Famille','Points de Vie','Blessure',
 	'Attaque','Esquive','Dégâts','Régénération','Armure','Vue',
 	'Capacité spéciale','Résistance Magique','Autres'];
 
+function createImageTactique(url,id,nom) {
+	var img = document.createElement('img');
+	img.src = url;
+	img.align = 'ABSMIDDLE'; // DEBUG: OBSOLÈTE
+	img.id = id;
+	img.nom = nom;
+	img.onmouseover = showPopupTactique;
+	img.onmouseout = hidePopup;
+	return img;
+}
+
 function createCDMTable(id,nom,donneesMonstre) {
 try {
 	var urlImg = 'http://mountyzilla.tilk.info/scripts_0.9/images/';
@@ -1045,24 +1129,24 @@ try {
 	var tr = appendTr(thead,'mh_tdtitre');
 	var td = appendTdText(tr,
 		'CDM de '+nom+ (donneesMonstre[11]!='???' ? ' (N° '+id+')' : ''),
-		true);
+		true
+	);
 	td.colSpan = 2;
 	table.appendChild(thead);
 	var tbody = document.createElement('tbody');
 	table.appendChild(tbody);
 	
 	for(var i=0 ; i<listeTitres.length-3 ; i++) {
-		//window.alert(listeTitres[i]);
 		createCase(listeTitres[i],tbody,80);
-		}
-	//window.alert(tbody.childNodes.length);
+	}
 	var TypeMonstre = getEM(nom);
 	var infosCompo='';
-	if(TypeMonstre!='')
+	if(TypeMonstre!='') {
 	   infosCompo = compoEM(TypeMonstre);
-	
+	}
 	var nodes = tbody.childNodes;
-	nodes[0].childNodes[1].innerHTML = bbcode(donneesMonstre[0]) + analysePX(bbcode(donneesMonstre[0]));
+	nodes[0].childNodes[1].innerHTML =
+		bbcode(donneesMonstre[0])+analysePX(bbcode(donneesMonstre[0]));
 	nodes[1].childNodes[1].firstChild.nodeValue = bbcode(donneesMonstre[1]);
 	nodes[2].childNodes[1].innerHTML = bbcode(donneesMonstre[2]);
 	nodes[3].childNodes[1].innerHTML = bbcode(donneesMonstre[11]);
@@ -1157,7 +1241,7 @@ try {
 		
 		if(profilActif && nom.indexOf("Gowap Apprivoisé")==-1 && nom.indexOf("Gowap Sauvage")==-1)
 		{
-			td.appendChild(createPopupImage2(urlImg+"calc.png",id,nom));
+			td.appendChild(createImageTactique(urlImg+"calc.png",id,nom));
 		}
 	}
 	
@@ -1806,199 +1890,22 @@ function analyseTactique(donneesMonstre,nom) {
 	}
 
 
-/*-[functions]----------- Gestion des tags de trõlls -------------------------*/
-
-var tagPopup = null;
-var nbTagFile = 0, nbTagFileAnalyzed = 0;
-var infoTagTrolls = [], infoTagGuildes = [];
-
-/* [functions] Gestion des popups de tag */
-function initTagPopup() {
-	if(tagPopup!=null) { return; }
-	tagPopup = document.createElement('div');
-	tagPopup.id = 'tagPopup';
-	tagPopup.className = 'mh_textbox';
-	tagPopup.style =
-		'position:absolute;'
-		+'border:1px solid #000000;'
-		+'visibility:hidden;'
-		+'display:inline;'
-		+'z-index:3;'
-		+'max-width:400px;';
-	document.body.appendChild(tagPopup);
-	}
-
-function showTagPopup(evt) {
-	var texte = this.texteinfo;
-	tagPopup.innerHTML = texte;
-	tagPopup.style.left = (evt.pageX+15)+'px';
-	tagPopup.style.top = evt.pageY+'px';
-	tagPopup.style.visibility = 'visible';
-	}
-
-function hideTagPopup() {
-	tagPopup.style.visibility = 'hidden';
-	}
-
-function performTagComputation() { // uniquement lancé par libs
-	var nbGuildes = document.evaluate("//a[contains(@href,'javascript:EAV') "
-		+"or contains (@href,'javascript:EnterAllianceView')]",
-		document, null, 7, null).snapshotLength;
-	var nbTrolls = document.evaluate("//a[contains(@href,'javascript:EPV') "
-		+"or contains(@href,'javascript:EnterPJView')]",
-		document, null, 7, null).snapshotLength;
-	if(nbTrolls>0 || nbGuildes>0) {
-		initTagPopup();
-		getTag(analyseTags,showTags);
-		}
-	}
-
-function getTag(fonctionAnalyse,fonctionAffiche) {
-try {
-	if(!MZ_getValue(numTroll+'.TAGSURL') || MZ_getValue(numTroll+'.TAGSURL')=='')
-		return;
-	var tagsurl = MZ_getValue(numTroll+'.TAGSURL');
-	var listeTagsURL = tagsurl.split('$');
-	nbTagFile = listeTagsURL.length;
-	for(var i=0 ; i<listeTagsURL.length ; i++) {
-		if(listeTagsURL[i].toLowerCase().indexOf('http')==0) {
-			MZ_xmlhttpRequest({
-				method: 'GET',
-				url: listeTagsURL[i],
-				headers: {
-					'User-agent': 'Mozilla/4.0 (compatible) Mountyzilla',
-					'Accept': 'application/xml,text/xml',
-					},
-				onload: function(responseDetails) {
-					try {
-						fonctionAnalyse(responseDetails.responseText);
-						}
-					catch(e) {window.alert(e);}
-					nbTagFileAnalyzed++;
-					if(nbTagFileAnalyzed==nbTagFile)
-						fonctionAffiche();
-					},
-				onerror: function(responseDetails) {
-					nbTagFileAnalyzed++;
-					if(nbTagFileAnalyzed==nbTagFile)
-						fonctionAffiche();
-					},
-				});
-			}
-		else {
-			nbTagFileAnalyzed++;
-			if(nbTagFileAnalyzed==nbTagFile)
-				fonctionAffiche();
-			}
-		}
-	}
-	catch(e) {window.alert(e);}
-	}
-
-function createTagImage(url,text) {
-	var img = document.createElement('img');
-	img.src = url;
-	img.align = 'absmiddle'; // WARNING - Obsolete
-	img.texteinfo = text;
-	img.onmouseover = showTagPopup;
-	img.onmouseout = hideTagPopup;
-	return img;
-	}
-
-function showTags() { // uniquement dans libs
-try {
-	if(infoTagGuildes.length>0)
-		{ // nom mais quelle brutasse !!!
-			var nodes = document.evaluate(
-				"//a[contains(@href,'javascript:EAV') "
-				+"or contains(@href,'javascript:EnterAllianceView')]",
-				document, null, 7, null);
-			for(var i=0;i<nodes.snapshotLength;i++)
-			{
-				var node = nodes.snapshotItem(i);
-				var link = node.getAttribute('href');
-				var guildeID = parseInt(link.substring(link.indexOf('(')+1,link.indexOf(',')));
-				var infos = infoTagGuildes[guildeID];
-				if(infos) 
-				{
-					for(var j=0;j<infos.length;j++)
-					{
-						insertAfter(node,createTagImage(infos[j][0],infos[j][1]));
-						insertAfter(node,document.createTextNode(" "));
-					}
-				}	
-			}
-		}
-		if(infoTagTrolls.length>0)
-		{
-			var nodes = document.evaluate("//a[contains(@href,'javascript:EPV') or contains(@href,'javascript:EnterPJView')]",document,null,7,null);
-			for(var i=0;i<nodes.snapshotLength;i++)
-			{
-				var node = nodes.snapshotItem(i);
-				var link = node.getAttribute('href').replace(/'/g,"");
-				var trollID = parseInt(link.substring(link.indexOf('(')+1,link.indexOf(')')));
-				var infos = infoTagTrolls[trollID];
-				if(infos) 
-				{
-					for(var j=0;j<infos.length;j++)
-					{
-						insertAfter(node,createTagImage(infos[j][0],infos[j][1]));
-						insertAfter(node,document.createTextNode(" "));
-					}
-				}	
-			}
-		}
-	}
-	catch(e) {window.alert(e);}
+/* DEBUG - En attendant l'upgrade vers MZ2 */
+if(isPage('MH_Missions/Mission_Liste.php')
+	&& MZ_getValue(numTroll+'.MISSIONS')) {
+	MZ_appendNewScript(
+		'http://mountyzilla.tilk.info/scripts_0.9/mission_liste_FF.js'
+	);
 }
 
-function analyseTags(data) {
-	var icones = [];
-	var descriptions = [];
-	
-	var lignes = data.split('\n');
-	for(var i=0;i<lignes.length;i++) {
-	try {
-		var args = lignes[i].split(';');
-		if(args.length<=1) continue;
-		
-		if(args[0]=='I')
-			icones.push(args[1]);
-		else if(args[0]=='D')
-			descriptions.push(bbcode(lignes[i].substring(lignes[i].indexOf(";")+1)));
-		else if(args[0]=='T') {
-			if(args.length<=2) continue;
-			var id = args[1]*1;
-			var icone = icones[args[2]*1];
-			var texte = '';
-			for(var j=3;j<args.length;j++)
-				texte+=descriptions[args[j]*1];
-			var info = [icone,texte];
-			if(infoTagTrolls[id] == null)
-				infoTagTrolls[id] = [];
-			infoTagTrolls[id].push(info);
-			}
-		else if(args[0]=='G') {
-			if(args.length<=2) continue;
-			var id = args[1]*1;
-			var icone = icones[args[2]*1];
-			var texte = '';
-			for(var j=3;j<args.length;j++)
-				texte+=descriptions[args[j]*1];
-			var info = [icone,texte];
-			if(infoTagGuildes[id] == null)
-				infoTagGuildes[id] = [];
-			infoTagGuildes[id].push(info);
-			}
-		}
-		catch(e)
-		{
-			window.alert(e);
-			break;
-		}
-	}
+if(isPage('MH_Play/Play_action')) {
+	appendNewScript(
+		'http://mountyzilla.tilk.info/scripts_0.9/actions_FF.js'
+	);
 }
 
-if(!isPage("MH_Play/Play_vue.php") && !isPage("MH_Play/Play_menu.php"))
-	performTagComputation();
-
+if(isPage('MH_Play/Play_profil2')) {
+    appendNewScript(
+        'http://mountyzilla.tilk.info/scripts_0.9/profil2_FF.js'
+    );
+}

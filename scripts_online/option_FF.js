@@ -20,14 +20,6 @@
  * Passer le HTML injecté aux conventions HTML5
  */
 
-var tagsData = {
-	'Types de Trolls (Ancien)':
-		'http://mountypedia.free.fr/mz/typeTrolls.csv',
-	'Types de Trolls (Nouveau)':
-		'http://mountypedia.free.fr/mz/typeTrolls_new.csv',
-	'Pogo 2009':
-		'http://mountyzilla.tilk.info/resources/pogo2009.csv'
-};
 
 /*-[functions]------------- Fonctions de sauvegarde --------------------------*/
 
@@ -44,26 +36,6 @@ function saveITData() {
 	}
 	else {
 		MZ_removeValue(numTroll+'.INFOSIT');
-	}
-}
-
-function saveTagsData() {
-	var nom = document.getElementById('tagsSelect').value;
-	switch(nom) {
-		case 'none':
-			MZ_removeValue(numTroll+'.TAGSURL');
-			break;
-		case 'other':
-			var url = document.getElementById('tagsInput').value
-			if(url)
-				MZ_setValue(numTroll+'.TAGSURL','#'+url );
-				// # si url perso
-			else 
-				MZ_removeValue(numTroll+'.TAGSURL');
-			break;
-		default:
-			MZ_setValue(numTroll+'.TAGSURL','$'+tagsData[nom]);
-			// $ si url auto
 	}
 }
 
@@ -132,8 +104,9 @@ function saveAll() {
 		document.getElementById('vueCarac').checked ? 'true' : 'false');
 	MZ_setValue('CONFIRMEDECALAGE',
 		document.getElementById('confirmeDecalage').checked ? 'true' : 'false');
+	MZ_setValue(numTroll+".OLDSCHOOL",
+		document.getElementById("oldShoolStyle").checked ? "true" : "false");
 
-	saveTagsData();
 	saveITData();
 	
 	var bouton = document.getElementById('saveAll');
@@ -166,23 +139,6 @@ function onChangeIT() {
 		td = appendTd(tr);
 		appendText(td,'Mot de passe du compte : ');
 		appendTextbox(td,'password','passbricol',20,50);
-	}
-}
-
-function onChangeTags() {
-	var value = document.getElementById('tagsSelect').value;
-	var tagsBody = document.getElementById('tagsBody');
-	
-	if(value=='other') {
-		var td = appendTdText(appendTr(tagsBody),'Url du fichier de tags : ');
-		var mem = MZ_getValue(numTroll+'.TAGSURL'), url = '';
-		if(mem && mem[0]=='#') {
-			url = mem.substr(1);
-		}
-		appendTextbox(td,'text','tagsInput',50,150,url);
-	}
-	else {
-		tagsBody.innerHTML = '';
 	}
 }
 
@@ -228,6 +184,7 @@ function resetMainIco() {
 	document.getElementById('icoMenuIco').value=
 		'http://mountyzilla.tilk.info/scripts_0.9/images/mz_logo_small.png';
 }
+
 
 /*-[functions]-------------- Fonctions d'insertion ---------------------------*/
 
@@ -342,32 +299,6 @@ function insertOptionTable(insertPt) {
 		onChangeIT();
 	}
 	
-	/* Tags de Trõlls */
-	td = appendTd(appendTr(mainBody,'mh_tdtitre'));
-	appendText(td,'Tags de trõlls : ',true);
-	select = document.createElement('select');
-	select.id = 'tagsSelect';
-	appendOption(select,'none','Aucun');
-	str = MZ_getValue(numTroll+'.TAGSURL');
-	str = str ? str.slice(1) : '';
-	for(var tags in tagsData) {
-		appendOption(select,tags,tags);
-		if(str && str==tagsData[tags]) {
-			select.value = tags;
-		}
-	}
-	appendOption(select,'other','Autre');
-	td.appendChild(select);
-	
-	td = appendTd(appendTr(mainBody,'mh_tdpage'));
-	td.id = 'tagsBody';
-	select.onchange = onChangeTags;
-	str = MZ_getValue(numTroll+'.TAGSURL');
-	if(str && str[0]=='#') {
-		select.value = 'other';
-		onChangeTags();
-	}
-	
 	/* Options diverses */
 	td = appendTd(appendTr(mainBody,'mh_tdtitre'));
 	appendText(td,'Options diverses :',true);
@@ -391,6 +322,10 @@ function insertOptionTable(insertPt) {
 	td = appendTd(appendTr(mainBody,'mh_tdpage'));
 	appendCheckBox(td,'confirmeDecalage',MZ_getValue('CONFIRMEDECALAGE')=='true');
 	appendText(td,' Demander confirmation lors d\'un décalage de DLA');
+	
+	td = appendTd(appendTr(mainBody,"mh_tdpage"));
+	appendCheckBox(td,"oldShoolStyle",MZ_getValue(numTroll+".OLDSCHOOL")=="true");
+	appendText(td," Ouvrir l'ancien profil par défaut");
 	
 	/* Bouton SaveAll */
 	td = appendTdCenter(appendTr(mainBody,'mh_tdtitre'));
@@ -428,6 +363,9 @@ function insertCreditsTable(insertPt) {
 	appendLI(ul,'Yoyor (87818) pour diverses améliorations de code');
 	appendLI(ul,'Rokü Menton-brûlant (108387) pour m\'avoir incité à passer '
 		+'sur GitHub');
+	appendLI(ul,'Rouletabille (91305) & Marmotte (93138) pour leur support '
+		+'technique récurrent');
+	appendLI(ul,'Hennet (74092) pour le script du nouveau profil');
 	appendLI(ul,'Tous les testeurs de la nouvelle génération '
 		+'oubliés par Dabihul');
 	}
@@ -440,7 +378,7 @@ start_script(712);
 // Pour cryptage des mdp IT
 appendNewScript('http://mountyzilla.tilk.info/scripts/md5.js');
 
-var insertPoint = document.getElementById('footer2');
+var insertPoint = document.getElementById('footer1');
 insertBefore(insertPoint,document.createElement('p'));
 insertTitle(insertPoint,'Mountyzilla : Options');
 insertOptionTable(insertPoint);
