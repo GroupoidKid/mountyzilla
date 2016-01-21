@@ -892,7 +892,7 @@ function envoiVersTroogle() {
 			bddLieux(debutLot,finLot);
 		FF_XMLHttpRequest({
 			method: 'POST',
-			url: 'http://troogle-beta.aacg.be/view_submission',
+			url: 'http://troogle.iktomi.eu/view_submission',
 			//url: 'http://weblocal/POST_RESULT/index.php',
 			headers : {
 				'Content-type': 'application/x-www-form-urlencoded'
@@ -2042,7 +2042,7 @@ try {
 	
 	ajoutDesFiltres();
 	set2DViewSystem();
-	//putBoutonTroogle();
+	putBoutonTroogle();
 	putBoutonPXMP();
 	
 	synchroniseFiltres();
