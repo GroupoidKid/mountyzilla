@@ -7,9 +7,9 @@
 // @exclude     *it.mh.raistlin.fr*
 // @exclude     *mh2.mh.raistlin.fr*
 // @exclude     *mzdev.mh.raistlin.fr*
-// @version     1.2.19a.1
-// @require     XXX/subscripts/BDD.js?v=1.2.19a.1
-// @require     XXX/subscripts/cartes.js?v=1.2.19a.1
+// @require     http://weblocal/mountyzilla-git/subscripts/BDD.js?v=1.2.19a.9
+// @require     http://weblocal/mountyzilla-git/subscripts/cartes.js?v=1.2.19a.12
+// @version     1.2.19a.12
 // @grant GM_getValue
 // @grant GM_deleteValue
 // @grant GM_setValue
@@ -3586,8 +3586,17 @@ function MZ_setCarteTousGogoHTML5() {
 
 function MZ_setCarteTP() {
 	// regexp compliquée par le fait que MH met une rupture de ligne dans les coord dans la page Lieu_Description.php
-	var pos = window.document.getElementsByTagName("body")[0].innerHTML.match(/X[\n\r\t ]*=[\n\r\t ]*(-?\d+)[\n\r\t ]*\|[\n\r\t ]*Y[\n\r\t ]*=[\n\r\t ]*(-?\d+) *\|[\n\r\t ]*N[\n\r\t ]*=[\n\r\t ]*(-?\d+)/i);
-	var sortie = {x:parseInt(pos[1]), y:parseInt(pos[2]), n:parseInt(pos[2]), id:'', nom:'Sortie TP', typ:'tp'};
+	var pos = window.document.getElementsByTagName("body")[0].innerHTML.match(
+		/X[\n\r\t ]*=[\n\r\t ]*(-?\d+)[\n\r\t ]*\|[\n\r\t ]*Y[\n\r\t ]*=[\n\r\t ]*(-?\d+) *\|[\n\r\t ]*N[\n\r\t ]*=[\n\r\t ]*(-?\d+)/i
+	);
+	var sortie = {
+		x:parseInt(pos[1]),
+		y:parseInt(pos[2]),
+		n:parseInt(pos[2]),
+		id:'',
+		nom:'Sortie TP',
+		typ:'tp'
+	};
 	MZ_showCarteBottom([[sortie]]);	// L'arg est un tableau de tableaux d'objets
 }
 

@@ -1,4 +1,82 @@
 
+var mz_ie = (window.attachEvent)? true:false;
+if ("function" !== typeof addEvent) {
+	if (mz_ie) {
+		function addEvent(obj, typ, fn, sens) {
+			obj["e"+typ+fn] = fn; obj[typ+fn] = function() {
+				obj["e"+typ+fn]( window.event );
+			}
+			obj.attachEvent("on"+typ, obj[typ+fn] );
+		}
+	}
+	else  {
+		function addEvent(obj, typ, fn, sens) {
+			obj.addEventListener(typ, fn, sens);
+		}
+	}
+}
+
+/* Utilisation de la gestion de l'enregistrement des données de
+GreaseMonkey, avec partage entre scripts via le localStorage, par
+Vapulabehemot (82169) 07/02/2017 */
+// Correction Roule' pour les boolean, le JSON decode pose problème car MZ utilise JSON
+// Nécessite la présence de @grant GM_getValue, @grant GM_deleteValue et @grant GM_setValue
+function MY_getValue(key) {
+	var v = window.localStorage.getItem(key);
+	vGM = GM_getValue(key);
+	if ((vGM == null)
+		|| (v != null && v != vGM)){
+		GM_setValue(key, v);
+	} else if (v == null && vGM != null) {
+		v = vGM;
+		window.localStorage[key] = vGM;
+	}
+	return v;
+}
+function MY_removeValue(key) {
+	GM_deleteValue(key);
+	window.localStorage.removeItem(key);
+}
+function MY_setValue(key, val) {
+	if (val === true)	// conversion des booléens en 0 ou 1 à cause du localStorage infoutu de gérer les booléens
+		val = 1;
+	else if (val === false)
+		val = 0;
+	try {
+	GM_setValue(key, val);
+	} catch(e) {
+		window.console.log('[MZ ' + GM_info.script.version + '] MY_setValue echec GM_setValue(' + key + ', ' + val + ')');
+	}
+	try {
+		window.localStorage[key] = val;
+	} catch(e) {
+		window.console.log('[MZ ' + GM_info.script.version + '] MY_setValue echec localStorage[' + key + '] = ' + val);
+	}
+}
+
+function traceStack(e, sModule) {
+	var version  = '';
+	if (GM_info && GM_info.script && GM_info.script.version)
+		version = ' ' + GM_info.script.version;
+	sRet = '[MZ' + version + ']'
+	if (sModule) sRet += ' {' + sModule + '}';
+	try {
+		if (e.message) sRet += ' ' + e.message;
+	} catch (e2) {
+		sRet += ' <exception acces message>';//+ e2.message;
+	}
+	try {
+		if (e.stack) {
+			var sStack = e.stack;
+			// enlever les infos confidentielles
+			sRet += "\n" + sStack.replace(/file\:\/\/.*gm_scripts/ig, '...');
+		}
+	} catch (e2) {
+		sRet += ' <exception acces stack>'; // + e2.message;
+	}
+	return sRet;
+}
+
 /**********************
 * glissière en mode objet 
 * Roule 29/12/2016 à partir du code des trajets gowap doCallback_glissiere et Vapulabehemot
