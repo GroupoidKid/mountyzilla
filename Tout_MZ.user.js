@@ -494,7 +494,7 @@ var URL_bricol_mountyhall = URL_bricol + 'mountyhall/';
 
 var MHicons = '/mountyhall/Images/Icones/';
 // Active l'affichage des log de DEBUG (fonction debugMZ(str))
-var MY_DEBUG = false;
+var MY_DEBUG = true;
 
 var horsGM = false;
 try {	// à partir du 11/07/2018, (GM_getValue === undefined) provoque une exception
@@ -12401,6 +12401,7 @@ function extractionDuree(selecteur) {
 /*-[functions]------- Extraction / Sauvegarde des donnees --------------------*/
 
 function extractionDonnees() {
+	// TODO Stocker tout ça en JSON !
 	    // Variables temporaires
 	var Nbrs = {};
 
@@ -12496,6 +12497,11 @@ function extractionDonnees() {
 // **************************
 // Cadre "Caracteristiques"
 // **************************
+	// NOTE: À propos des écart-types
+	// L'écart-type pour nDf+k est sqrt(n*(f^2-1)/12), donc:
+	// pour nD3+k => 2*sigma = sqrt(8/3*n)
+	// pour nD6+k => 2*sigma = sqrt(35/3*n)
+
 		// Attaque
 	att = getUniqueIntValueBySelector('#carac #att');
 	attbp = getUniqueIntValueBySelector('#carac #att_p');
@@ -12517,6 +12523,7 @@ function extractionDonnees() {
 	esqtourD = getUniqueIntValueBySelector('#carac #esq_tour_d');
 	esqmoy = 3.5*esq + esqbp+esqbm;
 	esqmoytour = 3.5*(esq+esqtourD) + esqbp+esqbm;
+	esq2sig = Math.floor(Math.sqrt(3500*esq/3))/10;
 	debugMZ("ESQ: "+esq+"+("+esqbp+")+("+esqbm+") ;EsqMoy:"+esqmoy+"; esq/tour:"+esqtourD+" ;EsqMoyTour:"+esqmoytour);
 		// Degat
 	deg = getUniqueIntValueBySelector('#carac #deg');
@@ -12524,7 +12531,9 @@ function extractionDonnees() {
 	degbm = getUniqueIntValueBySelector('#carac #deg_m');
 	degtour = getUniqueIntValueBySelector('#carac #deg_tour'); // % bonus AdD
 	degmoy = 2*deg + degbp + degbm;
-	degmoycrit = 2*(deg+Math.floor(deg/2)) + degbp + degbm;
+	deg2sig = Math.floor(Math.sqrt(800*deg/3))/10;
+	degmoycrit = 2*Math.floor(3*deg/2) + degbp + degbm;
+	deg2sigcrit = Math.floor(Math.sqrt(800*Math.floor(3*deg/2)/3))/10;
 	var DDegBonus = Math.floor(deg*degtour/100);
 	degmoytour = 2*(deg + DDegBonus) + degbp + degbm;
 	degmoycrittour = degmoytour + 2*Math.floor(deg/2);
@@ -12698,13 +12707,13 @@ function setInfosCaracteristiques() {
 	tdAttTotal.innerHTML="<i>"+attmoy+"</i>";
 	if(attmoy!=attmoytour){tdAttTotal.innerHTML+=" ("+attmoytour+")";}
 
-	var tdEsqTotal = document.querySelector("table#caracs td#esq").parentElement.children[5];
-    tdEsqTotal.innerHTML="<i>"+esqmoy+"</i>";
-	if(esqmoy!=esqmoytour){tdEsqTotal.innerHTML+=" ("+esqmoytour+")";}
+	var tdEsqTotal = document.querySelector('table#caracs td#esq').parentElement.children[5];
+    tdEsqTotal.innerHTML='<i>'+esqmoy+'±'+esq2sig+'</i>';
+	if(esqmoy!=esqmoytour){tdEsqTotal.innerHTML+=' ('+esqmoytour+')';}
 
-	var tdDegTotal = document.querySelector("table#caracs td#deg").parentElement.children[5];
-	tdDegTotal.innerHTML="<i>"+degmoy+"/"+degmoycrit+"</i>";
-	if(degmoy!=degmoytour){tdDegTotal.innerHTML+=" ("+degmoytour+"/"+degmoycrittour+")";}
+	var tdDegTotal = document.querySelector('table#caracs td#deg').parentElement.children[5];
+	tdDegTotal.innerHTML='<i>'+degmoy+'±'+deg2sig+'/'+degmoycrit+'±'+deg2sigcrit+'</i>';
+	if(degmoy!=degmoytour){tdDegTotal.innerHTML+=' ('+degmoytour+'/'+degmoycrittour+')';}
 
 	var trRegeneration = document.querySelector("table#caracs td#reg").parentElement;
     var tdRegTotal = trRegeneration.children[5];
