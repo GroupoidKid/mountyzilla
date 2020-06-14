@@ -12115,8 +12115,11 @@ function calculeDistance(maPos,posArr) {
 function inversionCoord() {
 	var maPos = getPosition();
 	var listeOffsets = {
-		'monstres':checkBoxLevels.checked?4:3,
-		'trolls':6,
+		'monstres':checkBoxLevels.checked?4:5,
+		'trolls':7,
+		'tresors':4,
+		'champignons':4,
+		'lieux':4
 	};
 	for(var type in listeOffsets) {
 		var trList = VueContext['tr_'+type];
@@ -12177,11 +12180,6 @@ function do_vue() {
 			return;
 		}
 
-		// Fonctionnalité "Têtalenvert" cachée, en test :
-		if(MY_getValue(numTroll+'.VERLAN')=='true') {
-			inversionCoord();
-		}
-
 		ajoutDesFiltres();
 		set2DViewSystem();
 		//putBoutonTroogle();
@@ -12216,6 +12214,11 @@ function do_vue() {
 
 		MZ_Tactique.initPopup();
 		initPXTroll();
+
+		// Fonctionnalité "Tétalanvert!" cachée, en test :
+		if(MY_getValue(numTroll+'.VERLAN')=='true') {
+			inversionCoord();
+		}
 
 		if(getTalent("Projectile Magique")) {
 			computeProjo();
